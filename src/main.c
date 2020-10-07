@@ -1,5 +1,10 @@
 
 #include "toolbox.h"
+#include <windows.h>
+#include <stdarg.h>
+
+// Because I need to specify this for windows.
+#define GLEW_STATIC
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
@@ -19,6 +24,16 @@ global_variable const char *FRAGMENT_SHADER = "#version 330 core \n"
 "    frag_c = vec4(0.5, 0.0, 0.5, 1.0); \n"
 "} \n";
 
+// TODO: more robustness
+internal void
+output_error(char *message) {
+#if _MSC_VER
+    OutputDebugString(message);
+#else
+    fprintf(stderr, message);
+#endif
+}
+
 internal u32
 initialize_shaders() {
     u32 vert_shader, frag_shader;
@@ -34,7 +49,8 @@ initialize_shaders() {
     glGetShaderiv(vert_shader, GL_COMPILE_STATUS, &success);
     if (!success) {
         glGetShaderInfoLog(vert_shader, 512, 0, error_log);
-        fprintf(stderr, "Shader Compile Error: %s\n", error_log);
+        output_error("Failed to Compile vertex shader: \n");
+        output_error(error_log);
         return(0);
     }
     success = 0;
@@ -45,7 +61,8 @@ initialize_shaders() {
     glGetShaderiv(frag_shader, GL_COMPILE_STATUS, &success);
     if (!success) {
         glGetShaderInfoLog(frag_shader, 512, 0, error_log);
-        fprintf(stderr, "Shader Compile Error: %s\n", error_log);
+        output_error("Failed to Compile fragment shader: \n");
+        output_error(error_log);
         return(0);
     }
     success = 0;
@@ -58,7 +75,8 @@ initialize_shaders() {
     glGetProgramiv(program, GL_LINK_STATUS, &success);
     if (!success) {
         glGetProgramInfoLog(program, 512, 0, error_log);
-        fprintf(stderr, "Program Link Error: %s\n", error_log);
+        output_error("Failed to link shader program: \n");
+        output_error(error_log);
         return(0);
     }
 
@@ -75,7 +93,6 @@ gl_process_input(GLFWwindow *window) {
 }
 
 int main(int argc, char **argv) {
-
     f32 triangle_arrays[] = {
         -0.5f,  0.0f, 0.0f,
          0.5f,  0.0f, 0.0f,
@@ -87,7 +104,11 @@ int main(int argc, char **argv) {
         0, 1, 2,
         0, 1, 3
     };
-    glfwInit();
+
+    if (!glfwInit()) {
+        output_error("Failed to initialize GLFW.\n");
+        return(-1);
+    }
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -95,22 +116,23 @@ int main(int argc, char **argv) {
 
     GLFWwindow *game_window = glfwCreateWindow(800, 600, "OpenGL", 0, 0);
     if (!game_window) {
-        fprintf(stderr, "Failed to create opengl window\n");
+        
+        output_error("Failed to create opengl window\n");
         glfwTerminate();
         return(-1);
     }
     glfwMakeContextCurrent(game_window);
 
     if (glewInit() != GLEW_OK) {
-        fprintf(stderr, "Failed to initialize GLEW\n");
+        output_error("Failed to initialize GLEW\n");
         glfwTerminate();
         return(-1);
     }
-    glViewport(0, 0, 800, 600);
 
+    glViewport(0, 0, 800, 600);
     u32 shader_program = initialize_shaders();
     if (!shader_program) {
-        fprintf(stderr, "Failed to initialize shader\n");
+        output_error("Failed to initialize shader\n");
         return(-1);
     }
     u32 vao_id;
