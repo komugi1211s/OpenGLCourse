@@ -1,4 +1,20 @@
 
+/*
+ * TODO: 
+ *  Platform Layer ::
+ *      Audio
+ *      File System
+ *      Input Event
+ *      Memory Management
+ *      Threading (eh, maybe.)
+ *      Hot Reloading
+ *
+ *  Some Imported Library Cleanup ::
+ *      stb_image.h (should load png / jpg on my own, for learning reason!)
+ *      math.h      (I guess I can't remove this? maybe? I'd much rather write on my own, if Sine function isn't that complicated!)
+ * */
+
+
 #include "toolbox.h"
 #if _MSC_VER
 #include <windows.h>
@@ -10,27 +26,12 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
-#include <math.h> // TODO: Some day i'll blow this line off out of existence.
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h" // TODO: Some day i'll blow this line off out of existence.
+#include <math.h>      // TODO: Some day i'll blow this line off out of existence.
 
-global_variable const char *VERTEX_SHADER = "#version 330 core\n"
-"\n"
-"layout (location = 0) in vec3 vec_position; \n"
-"layout (location = 1) in vec3 vec_color; \n"
-"out vec4 passed_color;\n"
-"void main() \n"
-"{ \n"
-"    gl_Position = vec4(vec_position, 1.0); \n"
-"    passed_color = vec4(vec_color, 1.0); \n"
-"} \n";
+#include "main.h"
 
-global_variable const char *FRAGMENT_SHADER = "#version 330 core \n"
-"out vec4 frag_c; \n"
-"in  vec4 passed_color; \n"
-"\n"
-"void main() \n"
-"{\n"
-"    frag_c = passed_color;\n"
-"}\n";
 
 // TODO: more robustness
 internal void
@@ -42,8 +43,36 @@ output_error(char *message) {
 #endif
 }
 
-internal u32
+internal b32
+load_image_into_texture(char *image_name, Texture_Info *out_tex_info) {
+    u32 id;
+    i32 width, height, channels;
+
+    u8 *file_data = stbi_load(image_name, &width, &height, &channels, 0);
+    if (!file_data) return(-1);
+
+    glGenTextures(1, &id);
+    glBindTexture(GL_TEXTURE_2D, id);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_MIRRORED_REPEAT);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, file_data);
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    stbi_image_free(file_data);
+
+    out_tex_info->id = id;
+    out_tex_info->width = width;
+    out_tex_info->height = height;
+    out_tex_info->channels = channels;
+    return(1);
+}
+
+internal Shader_Info
 initialize_shaders(const char *vtx_shader_src, const char *frag_shader_src) {
+    Shader_Info program = {0};
     u32 vert_shader, frag_shader;
     i32 success = 0;
     char error_log[512] = {0};
@@ -59,7 +88,7 @@ initialize_shaders(const char *vtx_shader_src, const char *frag_shader_src) {
         glGetShaderInfoLog(vert_shader, 512, 0, error_log);
         output_error("Failed to Compile vertex shader: \n");
         output_error(error_log);
-        return(0);
+        return(program);
     }
     success = 0;
 
@@ -71,21 +100,21 @@ initialize_shaders(const char *vtx_shader_src, const char *frag_shader_src) {
         glGetShaderInfoLog(frag_shader, 512, 0, error_log);
         output_error("Failed to Compile fragment shader: \n");
         output_error(error_log);
-        return(0);
+        return(program);
     }
     success = 0;
 
-    u32 program = glCreateProgram();
-    glAttachShader(program, vert_shader);
-    glAttachShader(program, frag_shader);
-    glLinkProgram(program);
+    program.id  = glCreateProgram();
+    glAttachShader(program.id, vert_shader);
+    glAttachShader(program.id, frag_shader);
+    glLinkProgram(program.id);
 
-    glGetProgramiv(program, GL_LINK_STATUS, &success);
+    glGetProgramiv(program.id, GL_LINK_STATUS, &success);
     if (!success) {
-        glGetProgramInfoLog(program, 512, 0, error_log);
+        glGetProgramInfoLog(program.id, 512, 0, error_log);
         output_error("Failed to link shader program: \n");
         output_error(error_log);
-        return(0);
+        return(program);
     }
 
     glDeleteShader(vert_shader);
@@ -108,7 +137,12 @@ int main(int argc, char **argv) {
         // COLOR
         0.0f, 1.0f, 0.0f,
         0.0f, 0.0f, 1.0f,
-        1.0f, 0.0f, 0.0f
+        1.0f, 0.0f, 0.0f,
+        
+        // Tex Coord
+        0.0f, 0.0f,
+        1.0f, 0.0f,
+        0.5f, 1.0f,
     };
 
     if (!glfwInit()) {
@@ -136,10 +170,20 @@ int main(int argc, char **argv) {
     }
 
     glViewport(0, 0, 800, 600);
-
-    u32 shader_program = initialize_shaders(VERTEX_SHADER, FRAGMENT_SHADER);
-    if (!shader_program) {
+    Shader_Info shader_program = initialize_shaders(VERTEX_SHADER, FRAGMENT_SHADER);
+    if (!shader_program.id) {
         output_error("Failed to initialize shader\n");
+        glfwTerminate();
+
+        return(-1);
+    }
+
+    Texture_Info tex_info;
+    b32 success = load_image_into_texture("first_texture.jpg", &tex_info);
+    if (!success) {
+        output_error("Failed to Load a Texture\n");
+        glfwTerminate();
+
         return(-1);
     }
 
@@ -149,8 +193,9 @@ int main(int argc, char **argv) {
     u32 triangle_vbo_id;
     glGenBuffers(1, &triangle_vbo_id);
 
-    i32 ATTRIB_POSITION = 0;
-    i32 ATTRIB_COLOR    = 1;
+    i32 ATTRIB_POSITION  = 0;
+    i32 ATTRIB_COLOR     = 1;
+    i32 ATTRIB_TEXCOORDS = 2;
 
     glBindVertexArray(vao_id);
     glBindBuffer(GL_ARRAY_BUFFER, triangle_vbo_id);
@@ -158,21 +203,25 @@ int main(int argc, char **argv) {
 
     glVertexAttribPointer(ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), (void *)0);
     glVertexAttribPointer(ATTRIB_COLOR,    3, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), (void *)(3 * 3 * sizeof(f32)));
+
+    glVertexAttribPointer(ATTRIB_TEXCOORDS, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(f32), (void *)((3 * 3 * sizeof(f32)) * 2));
     glEnableVertexAttribArray(ATTRIB_POSITION);
     glEnableVertexAttribArray(ATTRIB_COLOR);
-
-    i32 vertex_color_loc = glGetUniformLocation(shader_program, "vertex_color");
+    glEnableVertexAttribArray(ATTRIB_TEXCOORDS);
 
     while (!glfwWindowShouldClose(game_window)) {
         gl_process_input(game_window);
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        glUseProgram(shader_program);
+        glUseProgram(shader_program.id);
 
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, tex_info.id);
         glBindVertexArray(vao_id);
         glDrawArrays(GL_TRIANGLES, 0, 3);
         glBindVertexArray(0);
+        glViewport(0, 0, 800, 600);
 
         glfwSwapBuffers(game_window);
         glfwPollEvents();
