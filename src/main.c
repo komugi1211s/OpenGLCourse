@@ -1,6 +1,6 @@
 
 /*
- * TODO: 
+ * TODO:
  *  Platform Layer ::
  *      Audio
  *      File System
@@ -29,6 +29,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h" // TODO: Some day i'll blow this line off out of existence.
 #include <math.h>      // TODO: Some day i'll blow this line off out of existence.
+#include "mafs.h"
 
 #include "main.h"
 
@@ -123,6 +124,7 @@ initialize_shaders(const char *vtx_shader_src, const char *frag_shader_src) {
     return(program);
 }
 
+
 internal void
 gl_process_input(GLFWwindow *window) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
@@ -131,18 +133,21 @@ gl_process_input(GLFWwindow *window) {
 
 int main(int argc, char **argv) {
     f32 triangle_arrays[] = {
-        -0.5f,  0.0f, 0.0f,
-         0.5f,  0.0f, 0.0f,
-         0.0f,  0.5f, 0.0f,
-        // COLOR
-        0.0f, 1.0f, 0.0f,
-        0.0f, 0.0f, 1.0f,
-        1.0f, 0.0f, 0.0f,
-        
+        -0.5f, -0.5f, 0.0f,
+         0.5f, 0.5f,  0.0f,
+         -0.5f, 0.5f, 0.0f,
+         0.5f, -0.5f, 0.0f,
+
         // Tex Coord
         0.0f, 0.0f,
         1.0f, 0.0f,
-        0.5f, 1.0f,
+        0.0f, 1.0f,
+        1.0f, 1.0f,
+    };
+
+    u32 indexing_arrays[] = {
+        0, 2, 1,
+        1, 3, 0
     };
 
     if (!glfwInit()) {
@@ -190,36 +195,45 @@ int main(int argc, char **argv) {
     u32 vao_id;
     glGenVertexArrays(1, &vao_id);
 
-    u32 triangle_vbo_id;
-    glGenBuffers(1, &triangle_vbo_id);
+    u32 vbo_id, ebo_id;
+    glGenBuffers(1, &vbo_id);
+    glGenBuffers(1, &ebo_id);
+
 
     i32 ATTRIB_POSITION  = 0;
-    i32 ATTRIB_COLOR     = 1;
     i32 ATTRIB_TEXCOORDS = 2;
 
     glBindVertexArray(vao_id);
-    glBindBuffer(GL_ARRAY_BUFFER, triangle_vbo_id);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_id);
     glBufferData(GL_ARRAY_BUFFER, sizeof(triangle_arrays), triangle_arrays, GL_STATIC_DRAW);
 
-    glVertexAttribPointer(ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), (void *)0);
-    glVertexAttribPointer(ATTRIB_COLOR,    3, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), (void *)(3 * 3 * sizeof(f32)));
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_id);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indexing_arrays), indexing_arrays, GL_STATIC_DRAW);
 
-    glVertexAttribPointer(ATTRIB_TEXCOORDS, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(f32), (void *)((3 * 3 * sizeof(f32)) * 2));
+    glVertexAttribPointer(ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), (void *)0);
+    glVertexAttribPointer(ATTRIB_TEXCOORDS, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(f32), (void *)(4 * 3 * sizeof(f32)));
+
     glEnableVertexAttribArray(ATTRIB_POSITION);
-    glEnableVertexAttribArray(ATTRIB_COLOR);
     glEnableVertexAttribArray(ATTRIB_TEXCOORDS);
+
+    u32 transform_location = glGetUniformLocation(shader_program.id, "transform");
+    printf("sizeof v4: %lu, sizeof mat4x4: %lu\n", sizeof(v4), sizeof(mat4x4));
 
     while (!glfwWindowShouldClose(game_window)) {
         gl_process_input(game_window);
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
+        mat4x4 trans_mat = m4x4_identity();
+        m4x4_rotate_radians(&trans_mat, (float)glfwGetTime(), vec_3(0.8f, 0.7f, 0.9f));
+
         glUseProgram(shader_program.id);
+        glUniformMatrix4fv(transform_location, 1, GL_FALSE, (f32 *)&trans_mat);
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, tex_info.id);
         glBindVertexArray(vao_id);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
         glViewport(0, 0, 800, 600);
 
