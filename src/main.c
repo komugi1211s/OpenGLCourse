@@ -199,7 +199,6 @@ int main(int argc, char **argv) {
     glGenBuffers(1, &vbo_id);
     glGenBuffers(1, &ebo_id);
 
-
     i32 ATTRIB_POSITION  = 0;
     i32 ATTRIB_TEXCOORDS = 2;
 
@@ -210,24 +209,22 @@ int main(int argc, char **argv) {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_id);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indexing_arrays), indexing_arrays, GL_STATIC_DRAW);
 
-    glVertexAttribPointer(ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), (void *)0);
+    glVertexAttribPointer(ATTRIB_POSITION,  3, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), (void *)0);
     glVertexAttribPointer(ATTRIB_TEXCOORDS, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(f32), (void *)(4 * 3 * sizeof(f32)));
 
     glEnableVertexAttribArray(ATTRIB_POSITION);
     glEnableVertexAttribArray(ATTRIB_TEXCOORDS);
-
-    u32 transform_location = glGetUniformLocation(shader_program.id, "transform");
-    printf("sizeof v4: %lu, sizeof mat4x4: %lu\n", sizeof(v4), sizeof(mat4x4));
 
     while (!glfwWindowShouldClose(game_window)) {
         gl_process_input(game_window);
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        mat4x4 trans_mat = m4x4_identity();
-        m4x4_rotate_radians(&trans_mat, (float)glfwGetTime(), vec_3(0.8f, 0.7f, 0.9f));
-
         glUseProgram(shader_program.id);
+        u32 transform_location = glGetUniformLocation(shader_program.id, "transform");
+        mat4x4 trans_mat = m4x4_identity();
+        trans_mat = m4x4_rotate_radians(&trans_mat, ((f32)glfwGetTime() * 2.0f), vec_3(0.8f, 0.7f, 0.9f));
+
         glUniformMatrix4fv(transform_location, 1, GL_FALSE, (f32 *)&trans_mat);
 
         glActiveTexture(GL_TEXTURE0);
