@@ -88,14 +88,35 @@ m4x4_orthographic(f32 start_x, f32 width,
                   f32 start_y, f32 height,
                   f32 near_plane, f32 far_plane)
 {
-    return m4x4_identity();
+
+    mat4x4 out = m4x4_identity();
+
+    out.row[0].col[0] = 2.0f / (width - start_x);
+    out.row[1].col[1] = 2.0f / (start_y - height);
+    out.row[2].col[2] = -2.0f / (far_plane - near_plane);
+    out.row[3].col[3] = 1.0f;
+
+    out.row[0].col[3] = -(width + start_x) / (width - start_x);
+    out.row[1].col[3] = -(height + start_y) / (start_y - height);
+    out.row[2].col[3] = -(far_plane + near_plane) / (far_plane - near_plane);
+
+    return out;
 }
 
 internal inline mat4x4
 m4x4_perspective(f32 field_of_view, f32 aspect_ratio,
                  f32 near_plane,    f32 far_plane)
 {
-    return m4x4_identity();
+    mat4x4 perspective = {0};
+    f32 tan_fov = tanf(field_of_view / 2.0);
+
+    perspective.row[0].col[0] = 1.0f / (aspect_ratio * tan_fov);
+    perspective.row[1].col[1] = 1.0f / tan_fov;
+    perspective.row[2].col[3] = -1.0f;
+    perspective.row[2].col[2] = (near_plane + far_plane) / (near_plane - far_plane);
+    perspective.row[3].col[2] = (2.0f * far_plane * near_plane) / (near_plane - far_plane);
+
+    return perspective;
 }
 
 internal inline f32
@@ -170,6 +191,14 @@ m4x4_mul(mat4x4 *left, mat4x4 *right) {
     }
 
     return out;
+}
+
+internal mat4x4
+m4x4_translate(mat4x4 original, v3 translate_by) {
+    original.row[3].col[0] = translate_by.col[0];
+    original.row[3].col[1] = translate_by.col[1];
+    original.row[3].col[2] = translate_by.col[2];
+    return original;
 }
 
 // TODO: Gimbal Lock Problem
