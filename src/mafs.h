@@ -108,22 +108,21 @@ m4x4_identity() {
     return result;
 }
 
+// Because Windows is awful and can't name variables "near" and "far"!!!
 internal inline mat4x4
 m4x4_orthographic(f32 left, f32 right,
                   f32 top, f32 bottom,
-                  f32 near, f32 far)
-{
-
+                  f32 z_near, f32 z_far) {
     mat4x4 out = {0};
 
     out.row[0].col[0] = 2.0f / (right - left);
     out.row[1].col[1] = 2.0f / (top - bottom);
-    out.row[2].col[2] = -2.0f / (far - near);
+    out.row[2].col[2] = -2.0f / (z_far - z_near);
     out.row[3].col[3] = 1.0f;
 
     out.row[3].col[0] = -(right + left) / (right - left);
     out.row[3].col[1] = -(top + bottom) / (top - bottom);
-    out.row[3].col[2] = -(far + near) / (far - near);
+    out.row[3].col[2] = -(z_far + z_near) / (z_far - z_near);
 
     return out;
 }
@@ -133,7 +132,7 @@ m4x4_orthographic(f32 left, f32 right,
  */
 internal inline mat4x4
 m4x4_perspective(f32 field_of_view, f32 aspect_ratio,
-                 f32 near_plane,    f32 far_plane)
+                 f32 z_near,    f32 z_far)
 {
     mat4x4 perspective = {0};
     f32 tan_fov = tanf(field_of_view / 2.0);
@@ -141,8 +140,8 @@ m4x4_perspective(f32 field_of_view, f32 aspect_ratio,
     perspective.row[0].col[0] = 1.0f / (aspect_ratio * tan_fov);
     perspective.row[1].col[1] = 1.0f / tan_fov;
     perspective.row[2].col[3] = -1.0f;
-    perspective.row[2].col[2] = (near_plane + far_plane) / (near_plane - far_plane);
-    perspective.row[3].col[2] = (2.0f * far_plane * near_plane) / (near_plane - far_plane);
+    perspective.row[2].col[2] = (z_near + z_far) / (z_near - z_far);
+    perspective.row[3].col[2] = (2.0f * z_far * z_near) / (z_near - z_far);
 
     return perspective;
 }
