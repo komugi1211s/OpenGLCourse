@@ -29,8 +29,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h" // TODO: Some day i'll blow this line off out of existence.
 #include <math.h>      // TODO: Some day i'll blow this line off out of existence.
-#include "mafs.h"
 
+#include "mafs.h"
 #include "main.h"
 
 
@@ -126,12 +126,71 @@ initialize_shaders(const char *vtx_shader_src, const char *frag_shader_src) {
 
 
 internal void
-gl_process_input(GLFWwindow *window) {
+gl_process_input(GLFWwindow *window, Engine_State *state) {
+    state->previous_mouse = state->current_mouse;
+    glfwGetCursorPos(window, &state->current_mouse.x, &state->current_mouse.y);
+
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, 1);
+
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+        if (!state->clicking) {
+            state->clicking = 1;
+            state->clicked_mouse = state->current_mouse;
+        }
+    } else {
+        if (state->clicking) {
+            state->clicking = 0;
+        }
+    }
 }
 
 int main(int argc, char **argv) {
+
+    f32 cube_arrays[] = {
+        -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
+         0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
+         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+        -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
+        -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
+
+        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+         0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+         0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
+         0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
+        -0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
+        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+
+        -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+        -0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+        -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+
+         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+         0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+         0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+         0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+
+        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+         0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
+         0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+         0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+
+        -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
+         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+        -0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
+        -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
+    };
+
     f32 triangle_arrays[] = {
         -0.5f, -0.5f, 0.0f,
          0.5f, 0.5f,  0.0f,
@@ -195,52 +254,61 @@ int main(int argc, char **argv) {
     u32 vao_id;
     glGenVertexArrays(1, &vao_id);
 
-    u32 vbo_id, ebo_id;
+    u32 vbo_id;
     glGenBuffers(1, &vbo_id);
-    glGenBuffers(1, &ebo_id);
+    // glGenBuffers(1, &ebo_id);
 
     i32 ATTRIB_POSITION  = 0;
     i32 ATTRIB_TEXCOORDS = 2;
 
     glBindVertexArray(vao_id);
     glBindBuffer(GL_ARRAY_BUFFER, vbo_id);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(triangle_arrays), triangle_arrays, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(cube_arrays), cube_arrays, GL_STATIC_DRAW);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_id);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indexing_arrays), indexing_arrays, GL_STATIC_DRAW);
+    //  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_id);
+    //  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indexing_arrays), indexing_arrays, GL_STATIC_DRAW);
 
-    glVertexAttribPointer(ATTRIB_POSITION,  3, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), (void *)0);
-    glVertexAttribPointer(ATTRIB_TEXCOORDS, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(f32), (void *)(4 * 3 * sizeof(f32)));
+    glVertexAttribPointer(ATTRIB_POSITION,  3, GL_FLOAT, GL_FALSE, 5 * sizeof(f32), (void *)0);
+    glVertexAttribPointer(ATTRIB_TEXCOORDS, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(f32), (void *)(3 * sizeof(f32)));
 
     glEnableVertexAttribArray(ATTRIB_POSITION);
     glEnableVertexAttribArray(ATTRIB_TEXCOORDS);
-
     glEnable(GL_DEPTH_TEST);
+
+    Engine_State engine_state = {0};
+    engine_state.camera_position = vec_3(0.0f, 0.0f, 5.0f);
+    engine_state.camera_target   = vec_3(0.0f, 0.0f, 0.0f);
+
+    v3 camera_up       = vec_3(0.0f, 1.0f, 0.0f);
+
     while (!glfwWindowShouldClose(game_window)) {
-        gl_process_input(game_window);
+        gl_process_input(game_window, &engine_state);
+
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glUseProgram(shader_program.id);
-        u32 model_loc = glGetUniformLocation(shader_program.id, "model");
-        u32 view_loc = glGetUniformLocation(shader_program.id, "view");
+        u32 model_loc      = glGetUniformLocation(shader_program.id, "model");
+        u32 view_loc       = glGetUniformLocation(shader_program.id, "view");
         u32 projection_loc = glGetUniformLocation(shader_program.id, "projection");
 
-        mat4x4 trans_mat = m4x4_identity();
-        mat4x4 view_mat = m4x4_identity();
-        mat4x4 perspective = m4x4_perspective(to_radians_f(45.0f), 800.0f / 600.0f, 0.1, 100.0);
+        mat4x4 trans_mat   = m4x4_identity();
+        mat4x4 view_mat    = m4x4_look_at(engine_state.camera_position, engine_state.camera_target, camera_up);
+        mat4x4 perspective = m4x4_perspective(to_radians_f(90.0f), 800.0f / 600.0f, 0.1, 100.0);
 
-        trans_mat = m4x4_rotate_radians(&trans_mat, (float)glfwGetTime(), vec_3(1.0f, 0.0f, 1.0f));
-        view_mat = m4x4_translate(view_mat, vec_3(0.0f, 0.0f, -5.0f));
+        trans_mat = m4x4_rotate_radians(&trans_mat, (float)glfwGetTime(), vec_3(1.0f, 0.0f, 0.0f));
+        trans_mat = m4x4_translate(trans_mat, vec_3(1.0f, 0.0f, 0.0f));
 
         glUniformMatrix4fv(model_loc,      1, GL_FALSE, (f32 *)&trans_mat);
         glUniformMatrix4fv(view_loc,       1, GL_FALSE, (f32 *)&view_mat);
+
         glUniformMatrix4fv(projection_loc, 1, GL_FALSE, (f32 *)&perspective);
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, tex_info.id);
         glBindVertexArray(vao_id);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        glDrawArrays(GL_TRIANGLES, 0, sizeof(cube_arrays));
+        // glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
         glViewport(0, 0, 800, 600);
 

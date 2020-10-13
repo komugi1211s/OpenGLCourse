@@ -71,6 +71,31 @@ vec_4(f32 x, f32 y, f32 z, f32 w) {
     return result;
 }
 
+internal inline f32
+v3_dot(v3 *first, v3 *second) {
+    return  (first->col[0] * second->col[0])
+          + (first->col[1] * second->col[1])
+          + (first->col[2] * second->col[2]);
+}
+
+internal inline v3
+v3_cross(v3 *first, v3 *second) {
+    v3 result = {0};
+
+    result.col[0] = (first->col[1] * second->col[2]) - (first->col[2] * second->col[1]);
+    result.col[1] = (first->col[2] * second->col[0]) - (first->col[0] * second->col[2]);
+    result.col[2] = (first->col[0] * second->col[1]) - (first->col[1] * second->col[0]);
+    return result;
+}
+
+internal inline f32
+v4_dot(v4 *first, v4 *second) {
+    return  (first->col[0] * second->col[0])
+          + (first->col[1] * second->col[1])
+          + (first->col[2] * second->col[2])
+          + (first->col[3] * second->col[3]);
+}
+
 internal inline mat4x4
 m4x4_identity() {
     mat4x4 result = {0};
@@ -84,25 +109,28 @@ m4x4_identity() {
 }
 
 internal inline mat4x4
-m4x4_orthographic(f32 start_x, f32 width,
-                  f32 start_y, f32 height,
-                  f32 near_plane, f32 far_plane)
+m4x4_orthographic(f32 left, f32 right,
+                  f32 top, f32 bottom,
+                  f32 near, f32 far)
 {
 
-    mat4x4 out = m4x4_identity();
+    mat4x4 out = {0};
 
-    out.row[0].col[0] = 2.0f / (width - start_x);
-    out.row[1].col[1] = 2.0f / (start_y - height);
-    out.row[2].col[2] = -2.0f / (far_plane - near_plane);
+    out.row[0].col[0] = 2.0f / (right - left);
+    out.row[1].col[1] = 2.0f / (top - bottom);
+    out.row[2].col[2] = -2.0f / (far - near);
     out.row[3].col[3] = 1.0f;
 
-    out.row[0].col[3] = -(width + start_x) / (width - start_x);
-    out.row[1].col[3] = -(height + start_y) / (start_y - height);
-    out.row[2].col[3] = -(far_plane + near_plane) / (far_plane - near_plane);
+    out.row[3].col[0] = -(right + left) / (right - left);
+    out.row[3].col[1] = -(top + bottom) / (top - bottom);
+    out.row[3].col[2] = -(far + near) / (far - near);
 
     return out;
 }
 
+/*
+ * Left Handed Perspective.
+ */
 internal inline mat4x4
 m4x4_perspective(f32 field_of_view, f32 aspect_ratio,
                  f32 near_plane,    f32 far_plane)
@@ -126,6 +154,17 @@ v3_len(v3 *target_p) {
     f32 z = (target_p->xyz.z * target_p->xyz.z);
 
     return sqrtf(x + y + z);
+}
+
+internal inline v3
+v3_sub(v3 *target, v3 *subtractor) {
+    v3 result = {0};
+
+    result.xyz.x = target->xyz.x - subtractor->xyz.x;
+    result.xyz.y = target->xyz.y - subtractor->xyz.y;
+    result.xyz.z = target->xyz.z - subtractor->xyz.z;
+
+    return result;
 }
 
 internal inline v3
@@ -193,6 +232,7 @@ m4x4_mul(mat4x4 *left, mat4x4 *right) {
     return out;
 }
 
+// Column Major Translation.
 internal mat4x4
 m4x4_translate(mat4x4 original, v3 translate_by) {
     original.row[3].col[0] = translate_by.col[0];
@@ -240,5 +280,35 @@ m4x4_rotate_radians(mat4x4 *mat, f32 radians, v3 axis) {
 internal inline mat4x4
 m4x4_rotate_degrees(mat4x4 *mat, f32 degrees, v3 axis) {
     return m4x4_rotate_radians(mat, to_radians_f(degrees), axis);
+}
+
+internal inline mat4x4
+m4x4_look_at(v3 position, v3 target, v3 up) {
+    mat4x4 look_at_matrix = {0};
+    mat4x4 position_matrix = m4x4_identity();
+
+    v3 direction = v3_normalize(v3_sub(&position, &target));
+    v3 right = v3_normalize(v3_cross(&up, &direction));
+    up = v3_cross(&direction, &right);
+
+    look_at_matrix.row[0].col[0] = right.col[0];
+    look_at_matrix.row[0].col[1] = right.col[1];
+    look_at_matrix.row[0].col[2] = right.col[2];
+
+    look_at_matrix.row[1].col[0] = up.col[0];
+    look_at_matrix.row[1].col[1] = up.col[1];
+    look_at_matrix.row[1].col[2] = up.col[2];
+
+    look_at_matrix.row[2].col[0] = direction.col[0];
+    look_at_matrix.row[2].col[1] = direction.col[1];
+    look_at_matrix.row[2].col[2] = direction.col[2];
+
+    look_at_matrix.row[3].col[3] = 1.0f;
+
+    position_matrix.row[3].col[0] = -position.col[0];
+    position_matrix.row[3].col[1] = -position.col[1];
+    position_matrix.row[3].col[2] = -position.col[2];
+
+    return m4x4_mul(&look_at_matrix, &position_matrix);
 }
 
