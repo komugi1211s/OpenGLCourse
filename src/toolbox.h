@@ -33,4 +33,6 @@ typedef uintptr_t uptr;
 #define Megabytes(n) (Kilobytes(n)*1024)
 #define Gigabytes(n) (Megabytes(n)*1024)
 
+#define Assert(expr) if(!(expr)) { printf("Assert Failed at %d in %s\n", __LINE__, __FILE__); *((int *)0) = 0; }
+
 #endif // K_UTILITY_

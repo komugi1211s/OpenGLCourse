@@ -54,5 +54,6 @@ typedef struct {
 
     v3 camera_target;
     v3 camera_position;
+    v3 camera_up;
 
 } Engine_State;

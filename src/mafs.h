@@ -156,6 +156,17 @@ v3_len(v3 *target_p) {
 }
 
 internal inline v3
+v3_add(v3 *target, v3 *adder) {
+    v3 result = {0};
+
+    result.xyz.x = target->xyz.x + adder->xyz.x;
+    result.xyz.y = target->xyz.y + adder->xyz.y;
+    result.xyz.z = target->xyz.z + adder->xyz.z;
+
+    return result;
+}
+
+internal inline v3
 v3_sub(v3 *target, v3 *subtractor) {
     v3 result = {0};
 
@@ -291,15 +302,15 @@ m4x4_look_at(v3 position, v3 target, v3 up) {
     up = v3_cross(&direction, &right);
 
     look_at_matrix.row[0].col[0] = right.col[0];
-    look_at_matrix.row[0].col[1] = right.col[1];
-    look_at_matrix.row[0].col[2] = right.col[2];
+    look_at_matrix.row[1].col[0] = right.col[1];
+    look_at_matrix.row[2].col[0] = right.col[2];
 
-    look_at_matrix.row[1].col[0] = up.col[0];
+    look_at_matrix.row[0].col[1] = up.col[0];
     look_at_matrix.row[1].col[1] = up.col[1];
-    look_at_matrix.row[1].col[2] = up.col[2];
+    look_at_matrix.row[2].col[1] = up.col[2];
 
-    look_at_matrix.row[2].col[0] = direction.col[0];
-    look_at_matrix.row[2].col[1] = direction.col[1];
+    look_at_matrix.row[0].col[2] = direction.col[0];
+    look_at_matrix.row[1].col[2] = direction.col[1];
     look_at_matrix.row[2].col[2] = direction.col[2];
 
     look_at_matrix.row[3].col[3] = 1.0f;
