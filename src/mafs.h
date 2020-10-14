@@ -108,6 +108,15 @@ m4x4_identity() {
     return result;
 }
 
+internal inline mat4x4
+m4x4_scale(mat4x4 target, v3 new_size) {
+    target.row[0].col[0] = new_size.col[0];
+    target.row[1].col[1] = new_size.col[1];
+    target.row[2].col[2] = new_size.col[2];
+
+    return target;
+}
+
 // Because Windows is awful and can't name variables "near" and "far"!!!
 internal inline mat4x4
 m4x4_orthographic(f32 left, f32 right,
@@ -229,13 +238,15 @@ internal mat4x4
 m4x4_mul(mat4x4 *left, mat4x4 *right) {
     mat4x4 out = {0};
 
-    // TODO: This is hella scary
-    for (i32 row = 0; row < 4; row++) {
-        for (i32 col = 0; col < 4; col++) {
-            out.row[row].col[col]  = (left->row[row].col[0] * right->row[0].col[col])
-                                   + (left->row[row].col[1] * right->row[1].col[col])
-                                   + (left->row[row].col[2] * right->row[2].col[col])
-                                   + (left->row[row].col[3] * right->row[3].col[col]);
+    // Column major multiplification.
+    // row major would be left->row[i].col[0] * right->row[0].col[j]...
+
+    for (i32 i = 0; i < 4; i++) {
+        for (i32 j = 0; j < 4; j++) {
+            out.row[i].col[j]  = (left->row[0].col[j] * right->row[i].col[0])
+                               + (left->row[1].col[j] * right->row[i].col[1])
+                               + (left->row[2].col[j] * right->row[i].col[2])
+                               + (left->row[3].col[j] * right->row[i].col[3]);
         }
     }
 
@@ -319,6 +330,9 @@ m4x4_look_at(v3 position, v3 target, v3 up) {
     position_matrix.row[3].col[1] = -position.col[1];
     position_matrix.row[3].col[2] = -position.col[2];
 
+    // in theory this multiplification is wrong and I should do M_LookAt * M_Position,
+    // but since this function performs Row-Major and openGL expects result to be Column-Major,
+    // swapping these two matrix makes sense 
     return m4x4_mul(&look_at_matrix, &position_matrix);
 }
 
