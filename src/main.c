@@ -33,8 +33,14 @@
 #include "mafs.h"
 #include "main.h"
 
-
 global_variable f32 dt = 0.0f;
+
+global_variable u32 immediate_vao_id = 0;
+global_variable u32 immediate_vbo_id = 0;
+
+global_variable u32 gizmo_vao_id = 0;
+global_variable u32 gizmo_vbo_id = 0;
+
 
 // TODO: more robustness
 internal void
@@ -133,6 +139,7 @@ initialize_shaders(const char *vtx_shader_src, const char *frag_shader_src) {
     glDeleteShader(vert_shader);
     glDeleteShader(frag_shader);
 
+    glUseProgram(program.id);
     return(program);
 }
 
@@ -188,6 +195,72 @@ gl_process_input(GLFWwindow *window, Engine_State *state) {
 
         state->camera_position = v3_add(&state->camera_position, &move_towards);
     }
+}
+
+void init_immediate_stuff() {
+    glGenVertexArrays(1, &immediate_vao_id);
+    glGenBuffers(1, &immediate_vbo_id);
+
+    glBindVertexArray(immediate_vao_id);
+
+
+    glBindVertexArray(0);
+}
+
+void init_gizmo_stuff() {
+    f32 gizmo_lines_array[] = {
+        0.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f,
+
+        0.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f,
+
+        0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f,
+
+        1.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f,
+        0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 1.0f,
+        0.0f, 0.0f, 1.0f,
+    };
+
+    glGenVertexArrays(1, &gizmo_vao_id);
+    glGenBuffers(1, &gizmo_vbo_id);
+
+    glBindVertexArray(gizmo_vbo_id);
+    glBindBuffer(GL_ARRAY_BUFFER, gizmo_vbo_id);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(gizmo_lines_array), gizmo_lines_array, GL_STATIC_DRAW);
+
+    glEnableVertexArrayAttrib(gizmo_vao_id, 0); // POSITION
+    glEnableVertexArrayAttrib(gizmo_vao_id, 1); // COLOR
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, (3 * sizeof(f32)), (void *)0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, (3 * sizeof(f32)), (void *)((3 * sizeof(f32)) * 6));
+
+    glBindVertexArray(0);
+}
+
+internal void
+draw_gizmo(Engine_State *engine, Shader_Info *shader) {
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    mat4x4 model = m4x4_translate(m4x4_identity(), vec_3(0.0f, 0.0f, -1.0f));
+
+    mat4x4 perspective = m4x4_orthographic(-1.0f, 1.0f, 1.0f, -1.0f, 0.1, 100.0);
+
+    mat4x4 view        = m4x4_look_at(engine->camera_position,
+                                      v3_add(&engine->camera_position, &engine->camera_target),
+                                      engine->camera_up);
+
+    glUniformMatrix4fv(shader->model_matrix_loc, 1, GL_FALSE, (f32 *)&model);
+    glUniformMatrix4fv(shader->view_matrix_loc, 1, GL_FALSE, (f32 *)&view);
+    glUniformMatrix4fv(shader->projection_matrix_loc, 1, GL_FALSE, (f32 *)&perspective);
+
+    glBindVertexArray(gizmo_vao_id);
+    glDrawArrays(GL_LINES, 0, 6);
+    glBindVertexArray(0);
 }
 
 int main(int argc, char **argv) {
@@ -287,6 +360,11 @@ int main(int argc, char **argv) {
         return(-1);
     }
 
+    glUseProgram(shader_program.id);
+    shader_program.model_matrix_loc      = glGetUniformLocation(shader_program.id, "model");
+    shader_program.view_matrix_loc       = glGetUniformLocation(shader_program.id, "view");
+    shader_program.projection_matrix_loc = glGetUniformLocation(shader_program.id, "projection");
+
     Texture_Info tex_info;
     b32 success = load_image_into_texture("first_texture.jpg", &tex_info);
     if (!success) {
@@ -314,16 +392,21 @@ int main(int argc, char **argv) {
     glEnableVertexAttribArray(ATTRIB_TEXCOORDS);
     glEnable(GL_DEPTH_TEST);
 
+
     Engine_State engine_state = {0};
     engine_state.camera_position = vec_3(0.0f, 0.0f,  5.0f);
     engine_state.camera_target   = vec_3(0.0f, 0.0f, -1.0f);
     engine_state.camera_up       = vec_3(0.0f, 1.0f,  0.0f);
 
+    init_gizmo_stuff();
+
     f32 pitch, yaw;
     pitch = 0.0f;
     yaw = -90.0f;
-    f32 sensitivity = 0.1f;
 
+    mat4x4 perspective = m4x4_perspective(to_radians_f(45.0f), 800.0f / 600.0f, 0.1, 100.0);
+
+    f32 sensitivity = 0.1f;
     f32 last_frame = 0.0f;
     while (!glfwWindowShouldClose(game_window)) {
         f32 current_frame = glfwGetTime();
@@ -356,31 +439,25 @@ int main(int argc, char **argv) {
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        glUseProgram(shader_program.id);
-        u32 model_loc      = glGetUniformLocation(shader_program.id, "model");
-        u32 view_loc       = glGetUniformLocation(shader_program.id, "view");
-        u32 projection_loc = glGetUniformLocation(shader_program.id, "projection");
-
         mat4x4 trans_mat   = m4x4_identity();
         mat4x4 view_mat    = m4x4_look_at(engine_state.camera_position,
                                           v3_add(&engine_state.camera_position, &engine_state.camera_target),
                                           engine_state.camera_up);
-        mat4x4 perspective = m4x4_perspective(to_radians_f(45.0f), 800.0f / 600.0f, 0.1, 100.0);
 
         trans_mat = m4x4_rotate_radians(&trans_mat, (float)glfwGetTime(), vec_3(1.0f, 0.0f, 0.0f));
         trans_mat = m4x4_translate(trans_mat, vec_3(1.0f, 0.0f, 0.0f));
 
-        glUniformMatrix4fv(model_loc,      1, GL_FALSE, (f32 *)&trans_mat);
-        glUniformMatrix4fv(view_loc,       1, GL_FALSE, (f32 *)&view_mat);
-
-        glUniformMatrix4fv(projection_loc, 1, GL_FALSE, (f32 *)&perspective);
+        glUniformMatrix4fv(shader_program.model_matrix_loc,      1, GL_FALSE, (f32 *)&trans_mat);
+        glUniformMatrix4fv(shader_program.view_matrix_loc,       1, GL_FALSE, (f32 *)&view_mat);
+        glUniformMatrix4fv(shader_program.projection_matrix_loc, 1, GL_FALSE, (f32 *)&perspective);
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, tex_info.id);
         glBindVertexArray(vao_id);
         glDrawArrays(GL_TRIANGLES, 0, sizeof(cube_arrays));
-        // glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
+        draw_gizmo(&engine_state, &shader_program);
+
         glViewport(0, 0, 800, 600);
 
         glfwSwapBuffers(game_window);

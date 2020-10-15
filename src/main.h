@@ -24,11 +24,15 @@ global_variable const char *FRAGMENT_SHADER = "#version 330 core \n"
 "\n"
 "void main() \n"
 "{\n"
-"    frag_c = texture(my_texture, tex_coord);\n"
+"    frag_c = texture(my_texture, tex_coord) * passed_color;\n"
 "}\n";
 
 typedef struct {
     u32 id;
+
+    u32 model_matrix_loc;
+    u32 view_matrix_loc;
+    u32 projection_matrix_loc;
 } Shader_Info;
 
 typedef struct {

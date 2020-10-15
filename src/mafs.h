@@ -238,15 +238,12 @@ internal mat4x4
 m4x4_mul(mat4x4 *left, mat4x4 *right) {
     mat4x4 out = {0};
 
-    // Column major multiplification.
-    // row major would be left->row[i].col[0] * right->row[0].col[j]...
-
     for (i32 i = 0; i < 4; i++) {
         for (i32 j = 0; j < 4; j++) {
-            out.row[i].col[j]  = (left->row[0].col[j] * right->row[i].col[0])
-                               + (left->row[1].col[j] * right->row[i].col[1])
-                               + (left->row[2].col[j] * right->row[i].col[2])
-                               + (left->row[3].col[j] * right->row[i].col[3]);
+            out.row[i].col[j]  = (left->row[i].col[0] * right->row[0].col[j])
+                               + (left->row[i].col[1] * right->row[1].col[j])
+                               + (left->row[i].col[2] * right->row[2].col[j])
+                               + (left->row[i].col[3] * right->row[3].col[j]);
         }
     }
 
@@ -306,7 +303,6 @@ m4x4_rotate_degrees(mat4x4 *mat, f32 degrees, v3 axis) {
 internal inline mat4x4
 m4x4_look_at(v3 position, v3 target, v3 up) {
     mat4x4 look_at_matrix = {0};
-    mat4x4 position_matrix = m4x4_identity();
 
     v3 direction = v3_normalize(v3_sub(&position, &target));
     v3 right = v3_normalize(v3_cross(&up, &direction));
@@ -326,13 +322,15 @@ m4x4_look_at(v3 position, v3 target, v3 up) {
 
     look_at_matrix.row[3].col[3] = 1.0f;
 
-    position_matrix.row[3].col[0] = -position.col[0];
-    position_matrix.row[3].col[1] = -position.col[1];
-    position_matrix.row[3].col[2] = -position.col[2];
-
-    // in theory this multiplification is wrong and I should do M_LookAt * M_Position,
-    // but since this function performs Row-Major and openGL expects result to be Column-Major,
-    // swapping these two matrix makes sense 
-    return m4x4_mul(&look_at_matrix, &position_matrix);
+    // Basically this works because 
+    // the calculation for position (3, 0) is done by
+    // (right[0] * -position[0]) + (right[1] * -position[1]) + ...
+    // which is just really a dot product of two.
+    // but since you're getting a dot product of POSITIVE position and it'll return the opposite value,
+    // you negate the result of dot product in the end
+    look_at_matrix.row[3].col[0] = -v3_dot(&right, &position);
+    look_at_matrix.row[3].col[1] = -v3_dot(&up,    &position);
+    look_at_matrix.row[3].col[2] = -v3_dot(&direction, &position);
+    return look_at_matrix;
 }
 
