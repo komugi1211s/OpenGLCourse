@@ -31,10 +31,6 @@ global_variable const char *FRAGMENT_SHADER = "#version 330 core \n"
 
 typedef struct {
     u32 id;
-
-    u32 model_matrix_loc;
-    u32 view_matrix_loc;
-    u32 projection_matrix_loc;
 } Shader_Info;
 
 typedef struct {
@@ -53,7 +49,7 @@ typedef struct {
 } Render_Target;
 
 internal Texture_Info load_image_file_into_texture(char *file_name, GLenum texture_type);
-internal void         use_texture(Texture_Info *tex);
+internal void         use_texture(Texture_Info *tex, GLenum texture_unit);
 
 internal Shader_Info  initialize_shaders(const char *vtx_shader_src, const char *frag_shader_src);
 internal void         use_shader(Shader_Info *shader);

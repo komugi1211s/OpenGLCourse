@@ -35,6 +35,12 @@ load_image_file_into_texture(char *file_name, GLenum texture_type) {
     return(info);
 }
 
+internal void
+use_texture(Texture_Info *tex, GLenum texture_unit) {
+    glActiveTexture(texture_unit);
+    glBindTexture(tex->texture_type, tex->id);
+}
+
 internal Shader_Info
 initialize_shaders(const char *vtx_shader_src, const char *frag_shader_src) {
     Shader_Info program = {0};
@@ -91,4 +97,31 @@ initialize_shaders(const char *vtx_shader_src, const char *frag_shader_src) {
 
     glUseProgram(program.id);
     return(program);
+}
+
+internal void
+use_shader(Shader_Info *shader) {
+    glUseProgram(shader->id);
+}
+
+internal void
+set_uniform_matrix4x4(Shader_Info *shader, char *uniform_var_name, mat4x4 *passing_matrix) {
+    GLuint target;
+
+    target = glGetUniformLocation(shader->id, uniform_var_name);
+    glUniformMatrix4fv(target, 1, GL_FALSE, (f32 *)passing_matrix);
+}
+
+internal void
+set_uniform_vec3(Shader_Info *shader, char *uniform_var_name, v3 *passing_vec3) {
+    GLuint target;
+    target = glGetUniformLocation(shader->id, uniform_var_name);
+    glUniform3fv(target, 1, (f32 *)passing_vec3);
+}
+
+internal void
+set_uniform_vec4(Shader_Info *shader, char *uniform_var_name, v4 *passing_vec4) {
+    GLuint target;
+    target = glGetUniformLocation(shader->id, uniform_var_name);
+    glUniform4fv(target, 1, (f32 *)passing_vec4);
 }

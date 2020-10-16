@@ -133,16 +133,16 @@ draw_gizmo(Engine_State *engine, Shader_Info *shader) {
     glClear(GL_DEPTH_BUFFER_BIT);
 
     mat4x4 model = m4x4_identity();
-    mat4x4 perspective = m4x4_perspective(to_radians_f(45.0f), 100.f/100.f, 0.1, 100.0);
-
-    mat4x4 view        = m4x4_look_at(engine->camera_position,
+    mat4x4 view  = m4x4_look_at(engine->camera_position,
                                       v3_add(&engine->camera_position, &engine->camera_target),
                                       engine->camera_up);
 
     view = m4x4_translate(view, vec_3(0.0f, -0.05f, -3.0f));
-    glUniformMatrix4fv(shader->model_matrix_loc, 1, GL_FALSE, (f32 *)&model);
-    glUniformMatrix4fv(shader->view_matrix_loc, 1, GL_FALSE, (f32 *)&view);
-    glUniformMatrix4fv(shader->projection_matrix_loc, 1, GL_FALSE, (f32 *)&perspective);
+    mat4x4 ortho = m4x4_orthographic(-1.0f, 1.0f, 1.0f, -1.0f, 0.1, 100.0);
+
+    set_uniform_matrix4x4(shader, "model", &model);
+    set_uniform_matrix4x4(shader, "view", &view);
+    set_uniform_matrix4x4(shader, "projection", &ortho);
 
     glBindVertexArray(gizmo_vao_id);
     glDrawArrays(GL_LINES, 0, 6);
@@ -239,18 +239,13 @@ int main(int argc, char **argv) {
     }
 
     glViewport(0, 0, 800, 600);
-    Shader_Info shader_program = initialize_shaders(VERTEX_SHADER, FRAGMENT_SHADER);
-    if (!shader_program.id) {
+    Shader_Info shader = initialize_shaders(VERTEX_SHADER, FRAGMENT_SHADER);
+    if (!shader.id) {
         output_error("Failed to initialize shader\n");
         glfwTerminate();
 
         return(-1);
     }
-
-    glUseProgram(shader_program.id);
-    shader_program.model_matrix_loc      = glGetUniformLocation(shader_program.id, "model");
-    shader_program.view_matrix_loc       = glGetUniformLocation(shader_program.id, "view");
-    shader_program.projection_matrix_loc = glGetUniformLocation(shader_program.id, "projection");
 
     Texture_Info tex_info;
     tex_info = load_image_file_into_texture("first_texture.jpg", GL_TEXTURE_2D);
@@ -282,7 +277,7 @@ int main(int argc, char **argv) {
 
 
     Engine_State engine_state = {0};
-    engine_state.camera_position = vec_3(0.0f, 0.0f,  5.0f);
+    engine_state.camera_position = vec_3(0.0f, 0.0f,  0.0f);
     engine_state.camera_target   = vec_3(0.0f, 0.0f, -1.0f);
     engine_state.camera_up       = vec_3(0.0f, 1.0f,  0.0f);
 
@@ -292,7 +287,7 @@ int main(int argc, char **argv) {
     pitch = 0.0f;
     yaw = -90.0f;
 
-    mat4x4 perspective = m4x4_perspective(to_radians_f(45.0f), 800.0f / 600.0f, 0.1, 100.0);
+    mat4x4 perspective = m4x4_perspective(to_radians_f(90.0f), 800.0f / 600.0f, 0.1, 1000.0);
 
     f32 sensitivity = 0.1f;
     f32 last_frame = 0.0f;
@@ -326,6 +321,19 @@ int main(int argc, char **argv) {
 
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        set_uniform_matrix4x4(&shader, "projection", &perspective);
+
+        {
+            mat4x4 trans_mat   = m4x4_identity();
+            mat4x4 view_mat    = m4x4_look_at(engine_state.camera_position,
+                                              v3_add(&engine_state.camera_position, &engine_state.camera_target),
+                                              engine_state.camera_up);
+            set_uniform_matrix4x4(&shader, "model", &trans_mat);
+            set_uniform_matrix4x4(&shader, "view", &view_mat);
+            glBindVertexArray(gizmo_vao_id);
+            glDrawArrays(GL_LINES, 0, 6);
+            glBindVertexArray(0);
+        }
 
         mat4x4 trans_mat   = m4x4_identity();
         mat4x4 view_mat    = m4x4_look_at(engine_state.camera_position,
@@ -333,18 +341,17 @@ int main(int argc, char **argv) {
                                           engine_state.camera_up);
 
         trans_mat = m4x4_rotate_radians(&trans_mat, (float)glfwGetTime(), vec_3(1.0f, 0.0f, 0.0f));
-        trans_mat = m4x4_translate(trans_mat, vec_3(1.0f, 0.0f, 0.0f));
+        trans_mat = m4x4_translate(trans_mat, vec_3(1.0f, 1.0f, -0.0f));
 
-        glUniformMatrix4fv(shader_program.model_matrix_loc,      1, GL_FALSE, (f32 *)&trans_mat);
-        glUniformMatrix4fv(shader_program.view_matrix_loc,       1, GL_FALSE, (f32 *)&view_mat);
-        glUniformMatrix4fv(shader_program.projection_matrix_loc, 1, GL_FALSE, (f32 *)&perspective);
+        use_shader(&shader);
+        set_uniform_matrix4x4(&shader, "model", &trans_mat);
+        set_uniform_matrix4x4(&shader, "view", &view_mat);
 
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, tex_info.id);
+        use_texture(&tex_info, GL_TEXTURE0);
         glBindVertexArray(vao_id);
         glDrawArrays(GL_TRIANGLES, 0, sizeof(cube_arrays));
         glBindVertexArray(0);
-        draw_gizmo(&engine_state, &shader_program);
+        draw_gizmo(&engine_state, &shader);
 
         glViewport(0, 0, 800, 600);
 
