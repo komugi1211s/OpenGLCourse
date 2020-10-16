@@ -129,16 +129,17 @@ void init_gizmo_stuff() {
 
 internal void
 draw_gizmo(Engine_State *engine, Shader_Info *shader) {
+    glViewport(0, 0, 100, 100);
     glClear(GL_DEPTH_BUFFER_BIT);
 
-    mat4x4 model = m4x4_translate(m4x4_identity(), vec_3(0.0f, 0.0f, -1.0f));
-
-    mat4x4 perspective = m4x4_orthographic(-1.0f, 1.0f, 1.0f, -1.0f, 0.1, 100.0);
+    mat4x4 model = m4x4_identity();
+    mat4x4 perspective = m4x4_perspective(to_radians_f(45.0f), 100.f/100.f, 0.1, 100.0);
 
     mat4x4 view        = m4x4_look_at(engine->camera_position,
                                       v3_add(&engine->camera_position, &engine->camera_target),
                                       engine->camera_up);
 
+    view = m4x4_translate(view, vec_3(0.0f, -0.05f, -3.0f));
     glUniformMatrix4fv(shader->model_matrix_loc, 1, GL_FALSE, (f32 *)&model);
     glUniformMatrix4fv(shader->view_matrix_loc, 1, GL_FALSE, (f32 *)&view);
     glUniformMatrix4fv(shader->projection_matrix_loc, 1, GL_FALSE, (f32 *)&perspective);
@@ -146,22 +147,23 @@ draw_gizmo(Engine_State *engine, Shader_Info *shader) {
     glBindVertexArray(gizmo_vao_id);
     glDrawArrays(GL_LINES, 0, 6);
     glBindVertexArray(0);
+    glViewport(0, 0, 800, 600);
 }
 
 int main(int argc, char **argv) {
 
     f32 cube_arrays[] = {
         -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
-         0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
-         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+        0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
+        0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+        0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
         -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
         -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
 
         -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-         0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-         0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-         0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
+        0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+        0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
+        0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
         -0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
         -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
 
@@ -172,33 +174,33 @@ int main(int argc, char **argv) {
         -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
         -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
 
-         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-         0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-         0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-         0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+        0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+        0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+        0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+        0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+        0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+        0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
 
         -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-         0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
-         0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-         0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+        0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
+        0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+        0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
         -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
         -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
 
         -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+        0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+        0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+        0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
         -0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
         -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
     };
 
     f32 triangle_arrays[] = {
         -0.5f, -0.5f, 0.0f,
-         0.5f, 0.5f,  0.0f,
-         -0.5f, 0.5f, 0.0f,
-         0.5f, -0.5f, 0.0f,
+        0.5f, 0.5f,  0.0f,
+        -0.5f, 0.5f, 0.0f,
+        0.5f, -0.5f, 0.0f,
 
         // Tex Coord
         0.0f, 0.0f,
@@ -270,11 +272,12 @@ int main(int argc, char **argv) {
     glBindVertexArray(vao_id);
     glBindBuffer(GL_ARRAY_BUFFER, vbo_id);
     glBufferData(GL_ARRAY_BUFFER, sizeof(cube_arrays), cube_arrays, GL_STATIC_DRAW);
+
+    glEnableVertexArrayAttrib(vao_id, ATTRIB_POSITION);
+    glEnableVertexArrayAttrib(vao_id, ATTRIB_TEXCOORDS);
+
     glVertexAttribPointer(ATTRIB_POSITION,  3, GL_FLOAT, GL_FALSE, 5 * sizeof(f32), (void *)0);
     glVertexAttribPointer(ATTRIB_TEXCOORDS, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(f32), (void *)(3 * sizeof(f32)));
-
-    glEnableVertexAttribArray(ATTRIB_POSITION);
-    glEnableVertexAttribArray(ATTRIB_TEXCOORDS);
     glEnable(GL_DEPTH_TEST);
 
 
