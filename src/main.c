@@ -14,33 +14,10 @@
  *      math.h      (I guess I can't remove this? maybe? I'd much rather write on my own, if Sine function isn't that complicated!)
  * */
 
-
-#include "toolbox.h"
-#if _MSC_VER
-#include <windows.h>
-#endif
-#include <stdarg.h>
-
-// Because I need to specify this for windows.
-#define GLEW_STATIC
-#include <GL/glew.h>
-#include <GLFW/glfw3.h>
-
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h" // TODO: Some day i'll blow this line off out of existence.
-#include <math.h>      // TODO: Some day i'll blow this line off out of existence.
-
 #include "mafs.h"
+#include "render.h"
+
 #include "main.h"
-
-global_variable f32 dt = 0.0f;
-
-global_variable u32 immediate_vao_id = 0;
-global_variable u32 immediate_vbo_id = 0;
-
-global_variable u32 gizmo_vao_id = 0;
-global_variable u32 gizmo_vbo_id = 0;
-
 
 // TODO: more robustness
 internal void
@@ -51,98 +28,6 @@ output_error(char *message) {
     fprintf(stderr, "%s", message);
 #endif
 }
-
-internal b32
-load_image_into_texture(char *image_name, Texture_Info *out_tex_info) {
-    u32 id;
-    i32 width, height, channels;
-
-    u8 *file_data = stbi_load(image_name, &width, &height, &channels, 0);
-    if (!file_data) return(-1);
-
-    glGenTextures(1, &id);
-    glBindTexture(GL_TEXTURE_2D, id);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_MIRRORED_REPEAT);
-
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, file_data);
-    glGenerateMipmap(GL_TEXTURE_2D);
-
-    stbi_image_free(file_data);
-
-    out_tex_info->id = id;
-    out_tex_info->width = width;
-    out_tex_info->height = height;
-    out_tex_info->channels = channels;
-    return(1);
-}
-
-internal Shader_Info
-initialize_shaders(const char *vtx_shader_src, const char *frag_shader_src) {
-    Shader_Info program = {0};
-    u32 vert_shader, frag_shader;
-    i32 success = 0;
-    char error_log[512] = {0};
-
-    vert_shader = glCreateShader(GL_VERTEX_SHADER);
-    frag_shader = glCreateShader(GL_FRAGMENT_SHADER);
-
-    glShaderSource(vert_shader, 1, &vtx_shader_src, 0);
-    glCompileShader(vert_shader);
-
-    glGetShaderiv(vert_shader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glDeleteShader(vert_shader);
-        glDeleteShader(frag_shader);
-
-        glGetShaderInfoLog(vert_shader, 512, 0, error_log);
-        output_error("Failed to Compile vertex shader: \n");
-        output_error(error_log);
-        return(program);
-    }
-    success = 0;
-
-    glShaderSource(frag_shader, 1, &frag_shader_src, 0);
-    glCompileShader(frag_shader);
-
-    glGetShaderiv(frag_shader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glDeleteShader(vert_shader);
-        glDeleteShader(frag_shader);
-
-        glGetShaderInfoLog(frag_shader, 512, 0, error_log);
-        output_error("Failed to Compile fragment shader: \n");
-        output_error(error_log);
-        return(program);
-    }
-    success = 0;
-
-    program.id  = glCreateProgram();
-    glAttachShader(program.id, vert_shader);
-    glAttachShader(program.id, frag_shader);
-    glLinkProgram(program.id);
-
-    glGetProgramiv(program.id, GL_LINK_STATUS, &success);
-    if (!success) {
-        glDeleteShader(vert_shader);
-        glDeleteShader(frag_shader);
-
-        glGetProgramInfoLog(program.id, 512, 0, error_log);
-        output_error("Failed to link shader program: \n");
-        output_error(error_log);
-
-        return(program);
-    }
-
-    glDeleteShader(vert_shader);
-    glDeleteShader(frag_shader);
-
-    glUseProgram(program.id);
-    return(program);
-}
-
 
 internal void
 gl_process_input(GLFWwindow *window, Engine_State *state) {
@@ -366,8 +251,8 @@ int main(int argc, char **argv) {
     shader_program.projection_matrix_loc = glGetUniformLocation(shader_program.id, "projection");
 
     Texture_Info tex_info;
-    b32 success = load_image_into_texture("first_texture.jpg", &tex_info);
-    if (!success) {
+    tex_info = load_image_file_into_texture("first_texture.jpg", GL_TEXTURE_2D);
+    if (tex_info.width == 0 && tex_info.height == 0 && tex_info.channels == 0) { // TODO: better error handling.
         output_error("Failed to Load a Texture\n");
         glfwTerminate();
 

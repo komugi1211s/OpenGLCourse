@@ -1,6 +1,8 @@
 /*
  * Maths but for idiots like me.
  * */
+#ifndef K_MAFS
+#define K_MAFS
 
 #ifdef M_PI
     #define PI M_PI
@@ -334,3 +336,5 @@ m4x4_look_at(v3 position, v3 target, v3 up) {
     return look_at_matrix;
 }
 
+
+#endif // K_MAFS
