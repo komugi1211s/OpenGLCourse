@@ -19,6 +19,72 @@
 
 #include "main.h"
 
+global_variable f32 dt = 0.0f;
+
+global_variable GLuint gizmo_vao_id = 0;
+global_variable GLuint gizmo_vbo_id = 0;
+
+const f32 gizmo_lines_array[] = {
+    0.0f, 0.0f, 0.0f,
+    1.0f, 0.0f, 0.0f,
+
+    0.0f, 0.0f, 0.0f,
+    0.0f, 1.0f, 0.0f,
+
+    0.0f, 0.0f, 0.0f,
+    0.0f, 0.0f, 1.0f,
+
+    1.0f, 0.0f, 0.0f,
+    1.0f, 0.0f, 0.0f,
+    0.0f, 1.0f, 0.0f,
+    0.0f, 1.0f, 0.0f,
+    0.0f, 0.0f, 1.0f,
+    0.0f, 0.0f, 1.0f,
+};
+
+global_variable const char *VERTEX_SHADER = "#version 330 core\n"
+"\n"
+"layout (location = 0) in vec3 vec_position; \n"
+"layout (location = 1) in vec3 vec_color;\n"
+"layout (location = 2) in vec2 in_tex_coords; \n"
+"out vec3 object_color; \n"
+"uniform mat4 model; \n"
+"uniform mat4 view; \n"
+"uniform mat4 projection; \n"
+"void main() \n"
+"{ \n"
+"    gl_Position = projection * view * model * vec4(vec_position, 1.0); \n"
+"    object_color = vec_color; \n"
+"} \n";
+
+global_variable const char *OBJECT_FRAGMENT_SHADER = "#version 330 core \n"
+"out vec4 frag_c; \n"
+"uniform vec3 object_color; \n"
+"uniform vec3 light_color; \n"
+"uniform sampler2D my_texture;\n"
+"\n"
+"void main() \n"
+"{\n"
+"    frag_c = vec4(object_color * light_color, 1.0); \n"
+"}\n";
+
+global_variable const char *LIGHT_FRAGMENT_SHADER = "#version 330 core \n"
+"out vec4 frag_c; \n"
+"\n"
+"void main() \n"
+"{\n"
+"    frag_c = vec4(1.0); \n"
+"}\n";
+
+global_variable const char *GIZMO_FRAGMENT_SHADER = "#version 330 core \n"
+"in vec3 object_color; \n"
+"out vec4 frag_c; \n"
+"\n"
+"void main() \n"
+"{\n"
+"    frag_c = vec4(object_color, 1.0); \n"
+"}\n";
+
 // TODO: more robustness
 internal void
 output_error(char *message) {
@@ -82,39 +148,11 @@ gl_process_input(GLFWwindow *window, Engine_State *state) {
     }
 }
 
-void init_immediate_stuff() {
-    glGenVertexArrays(1, &immediate_vao_id);
-    glGenBuffers(1, &immediate_vbo_id);
-
-    glBindVertexArray(immediate_vao_id);
-
-
-    glBindVertexArray(0);
-}
-
-void init_gizmo_stuff() {
-    f32 gizmo_lines_array[] = {
-        0.0f, 0.0f, 0.0f,
-        1.0f, 0.0f, 0.0f,
-
-        0.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f,
-
-        0.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f,
-
-        1.0f, 0.0f, 0.0f,
-        1.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f,
-        0.0f, 1.0f, 0.0f,
-        0.0f, 0.0f, 1.0f,
-        0.0f, 0.0f, 1.0f,
-    };
-
+void init_gizmo_stuff(Shader_Info *gizmo_shader) {
     glGenVertexArrays(1, &gizmo_vao_id);
     glGenBuffers(1, &gizmo_vbo_id);
 
-    glBindVertexArray(gizmo_vbo_id);
+    glBindVertexArray(gizmo_vao_id);
     glBindBuffer(GL_ARRAY_BUFFER, gizmo_vbo_id);
     glBufferData(GL_ARRAY_BUFFER, sizeof(gizmo_lines_array), gizmo_lines_array, GL_STATIC_DRAW);
 
@@ -124,11 +162,13 @@ void init_gizmo_stuff() {
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, (3 * sizeof(f32)), (void *)0);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, (3 * sizeof(f32)), (void *)((3 * sizeof(f32)) * 6));
 
+    *gizmo_shader = initialize_shaders(VERTEX_SHADER, GIZMO_FRAGMENT_SHADER);
+
     glBindVertexArray(0);
 }
 
 internal void
-draw_gizmo(Engine_State *engine, Shader_Info *shader) {
+draw_gizmo(Engine_State *engine, Shader_Info *gizmo_shader) {
     glViewport(0, 0, 100, 100);
     glClear(GL_DEPTH_BUFFER_BIT);
 
@@ -139,16 +179,35 @@ draw_gizmo(Engine_State *engine, Shader_Info *shader) {
 
     view = m4x4_translate(view, vec_3(0.0f, -0.05f, -3.0f));
     mat4x4 ortho = m4x4_orthographic(-1.0f, 1.0f, 1.0f, -1.0f, 0.1, 100.0);
-
-    set_uniform_matrix4x4(shader, "model", &model);
-    set_uniform_matrix4x4(shader, "view", &view);
-    set_uniform_matrix4x4(shader, "projection", &ortho);
-
     glBindVertexArray(gizmo_vao_id);
+
+    use_shader(gizmo_shader);
+    set_uniform_matrix4x4(gizmo_shader, "model", &model);
+    set_uniform_matrix4x4(gizmo_shader, "view", &view);
+    set_uniform_matrix4x4(gizmo_shader, "projection", &ortho);
+
     glDrawArrays(GL_LINES, 0, 6);
     glBindVertexArray(0);
     glViewport(0, 0, 800, 600);
 }
+
+internal void
+draw_origin_point(Engine_State *state, Shader_Info *shader) {
+
+    mat4x4 perspective = m4x4_perspective(to_radians_f(90.0f), 800.0f / 600.0f, 0.1, 1000.0);
+    mat4x4 trans_mat   = m4x4_identity();
+    mat4x4 view_mat    = m4x4_look_at(state->camera_position,
+                                      v3_add(&state->camera_position, &state->camera_target),
+                                      state->camera_up);
+
+    set_uniform_matrix4x4(shader, "model", &trans_mat);
+    set_uniform_matrix4x4(shader, "projection", &perspective);
+    set_uniform_matrix4x4(shader, "view", &view_mat);
+    glBindVertexArray(gizmo_vao_id);
+    glDrawArrays(GL_LINES, 0, 6);
+    glBindVertexArray(0);
+}
+
 
 int main(int argc, char **argv) {
 
@@ -196,24 +255,6 @@ int main(int argc, char **argv) {
         -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
     };
 
-    f32 triangle_arrays[] = {
-        -0.5f, -0.5f, 0.0f,
-        0.5f, 0.5f,  0.0f,
-        -0.5f, 0.5f, 0.0f,
-        0.5f, -0.5f, 0.0f,
-
-        // Tex Coord
-        0.0f, 0.0f,
-        1.0f, 0.0f,
-        0.0f, 1.0f,
-        1.0f, 1.0f,
-    };
-
-    u32 indexing_arrays[] = {
-        0, 2, 1,
-        1, 3, 0
-    };
-
     if (!glfwInit()) {
         output_error("Failed to initialize GLFW.\n");
         return(-1);
@@ -224,64 +265,70 @@ int main(int argc, char **argv) {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     GLFWwindow *game_window = glfwCreateWindow(800, 600, "OpenGL", 0, 0);
-    if (!game_window) {
-        output_error("Failed to create opengl window\n");
-        glfwTerminate();
-        return(-1);
-    }
+    Assert(game_window);
 
     glfwMakeContextCurrent(game_window);
 
-    if (glewInit() != GLEW_OK) {
-        output_error("Failed to initialize GLEW\n");
-        glfwTerminate();
-        return(-1);
-    }
+    GLenum glew_result = glewInit();
+    Assert(glew_result == GLEW_OK);
 
     glViewport(0, 0, 800, 600);
-    Shader_Info shader = initialize_shaders(VERTEX_SHADER, FRAGMENT_SHADER);
-    if (!shader.id) {
-        output_error("Failed to initialize shader\n");
-        glfwTerminate();
-
-        return(-1);
-    }
+    Shader_Info shader = initialize_shaders(VERTEX_SHADER, OBJECT_FRAGMENT_SHADER);
+    Assert(shader.id);
 
     Texture_Info tex_info;
     tex_info = load_image_file_into_texture("first_texture.jpg", GL_TEXTURE_2D);
-    if (tex_info.width == 0 && tex_info.height == 0 && tex_info.channels == 0) { // TODO: better error handling.
-        output_error("Failed to Load a Texture\n");
-        glfwTerminate();
+    Assert(tex_info.width > 0 && tex_info.height > 0);
 
-        return(-1);
-    }
+    Render_Target cube = {0};
+    Render_Target light_source = {0};
 
-    u32 vao_id;
-    glGenVertexArrays(1, &vao_id);
+    glGenVertexArrays(1, &cube.vao);
+    glGenBuffers(1, &cube.vbo);
 
-    u32 vbo_id;
-    glGenBuffers(1, &vbo_id);
+    //NOTE(fuzzy): Cleanup
     i32 ATTRIB_POSITION  = 0;
     i32 ATTRIB_TEXCOORDS = 2;
 
-    glBindVertexArray(vao_id);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_id);
+    // Set up the cube.
+    glBindVertexArray(cube.vao);
+    glBindBuffer(GL_ARRAY_BUFFER, cube.vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(cube_arrays), cube_arrays, GL_STATIC_DRAW);
 
-    glEnableVertexArrayAttrib(vao_id, ATTRIB_POSITION);
-    glEnableVertexArrayAttrib(vao_id, ATTRIB_TEXCOORDS);
+    glEnableVertexArrayAttrib(cube.vao, ATTRIB_POSITION);
+    glEnableVertexArrayAttrib(cube.vao, ATTRIB_TEXCOORDS);
 
     glVertexAttribPointer(ATTRIB_POSITION,  3, GL_FLOAT, GL_FALSE, 5 * sizeof(f32), (void *)0);
     glVertexAttribPointer(ATTRIB_TEXCOORDS, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(f32), (void *)(3 * sizeof(f32)));
-    glEnable(GL_DEPTH_TEST);
+    glBindVertexArray(0);
 
+
+    // Set up the light source.
+    glGenVertexArrays(1, &light_source.vao);
+    glBindVertexArray(light_source.vao);
+    light_source.vbo = cube.vbo; // Same Vertex Buffer.
+    glEnableVertexArrayAttrib(light_source.vao, ATTRIB_POSITION);
+    glVertexAttribPointer(ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(f32), (void *)0);
+    glBindVertexArray(cube.vao);
+    glBindVertexArray(0);
+
+    // Setup the light shader.
+    Shader_Info light_shader = initialize_shaders(VERTEX_SHADER, LIGHT_FRAGMENT_SHADER);
+    Assert(light_shader.id);
+
+
+    // Setup the gizmo.
+    Shader_Info gizmo_shader = {0};
+    init_gizmo_stuff(&gizmo_shader);
+    Assert(gizmo_shader.id);
+
+    glEnable(GL_DEPTH_TEST);
 
     Engine_State engine_state = {0};
     engine_state.camera_position = vec_3(0.0f, 0.0f,  0.0f);
     engine_state.camera_target   = vec_3(0.0f, 0.0f, -1.0f);
     engine_state.camera_up       = vec_3(0.0f, 1.0f,  0.0f);
-
-    init_gizmo_stuff();
+    // engine_state.imm_gui         = imm_initialize();
 
     f32 pitch, yaw;
     pitch = 0.0f;
@@ -291,6 +338,7 @@ int main(int argc, char **argv) {
 
     f32 sensitivity = 0.1f;
     f32 last_frame = 0.0f;
+
     while (!glfwWindowShouldClose(game_window)) {
         f32 current_frame = glfwGetTime();
         dt = current_frame - last_frame;
@@ -321,19 +369,7 @@ int main(int argc, char **argv) {
 
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        set_uniform_matrix4x4(&shader, "projection", &perspective);
 
-        {
-            mat4x4 trans_mat   = m4x4_identity();
-            mat4x4 view_mat    = m4x4_look_at(engine_state.camera_position,
-                                              v3_add(&engine_state.camera_position, &engine_state.camera_target),
-                                              engine_state.camera_up);
-            set_uniform_matrix4x4(&shader, "model", &trans_mat);
-            set_uniform_matrix4x4(&shader, "view", &view_mat);
-            glBindVertexArray(gizmo_vao_id);
-            glDrawArrays(GL_LINES, 0, 6);
-            glBindVertexArray(0);
-        }
 
         mat4x4 trans_mat   = m4x4_identity();
         mat4x4 view_mat    = m4x4_look_at(engine_state.camera_position,
@@ -343,15 +379,29 @@ int main(int argc, char **argv) {
         trans_mat = m4x4_rotate_radians(&trans_mat, (float)glfwGetTime(), vec_3(1.0f, 0.0f, 0.0f));
         trans_mat = m4x4_translate(trans_mat, vec_3(1.0f, 1.0f, -0.0f));
 
+        v3 object_color = vec_3(1.0f, 0.5f, 0.31f);
+        v3 light_color = vec_3(1.0f, 1.0f, 1.0f);
+
         use_shader(&shader);
+        set_uniform_vec3(&shader, "object_color", &object_color);
+        set_uniform_vec3(&shader, "light_color", &light_color);
+        set_uniform_matrix4x4(&shader, "projection", &perspective);
         set_uniform_matrix4x4(&shader, "model", &trans_mat);
         set_uniform_matrix4x4(&shader, "view", &view_mat);
 
         use_texture(&tex_info, GL_TEXTURE0);
-        glBindVertexArray(vao_id);
+        glBindVertexArray(cube.vao);
         glDrawArrays(GL_TRIANGLES, 0, sizeof(cube_arrays));
         glBindVertexArray(0);
-        draw_gizmo(&engine_state, &shader);
+
+        use_shader(&light_shader);
+        glBindVertexArray(light_source.vao);
+        glDrawArrays(GL_TRIANGLES, 0, sizeof(cube_arrays));
+        glBindVertexArray(0);
+
+        use_shader(&gizmo_shader);
+        draw_origin_point(&engine_state, &gizmo_shader);
+        draw_gizmo(&engine_state, &gizmo_shader);
 
         glViewport(0, 0, 800, 600);
 

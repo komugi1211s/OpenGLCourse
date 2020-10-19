@@ -1,14 +1,6 @@
 #include "mafs.h"
 #include "render.h"
 
-global_variable f32 dt = 0.0f;
-
-global_variable u32 immediate_vao_id = 0;
-global_variable u32 immediate_vbo_id = 0;
-
-global_variable u32 gizmo_vao_id = 0;
-global_variable u32 gizmo_vbo_id = 0;
-
 internal Texture_Info
 load_image_file_into_texture(char *file_name, GLenum texture_type) {
     Texture_Info info = {0};

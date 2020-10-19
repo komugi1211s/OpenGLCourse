@@ -3,7 +3,6 @@ typedef struct {
     f64 x, y;
 } Mouse_Position;
 
-
 typedef struct {
     Mouse_Position current_mouse;
     Mouse_Position previous_mouse;
