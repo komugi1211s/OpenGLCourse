@@ -2,7 +2,7 @@
 #include "dependency.h"
 
 // Utility stuff.
-#include "toolbox.h"
+#include "general.h"
 #include "mafs.h"
 
 // Actual functionality stuff.

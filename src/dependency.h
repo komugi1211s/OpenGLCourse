@@ -1,12 +1,11 @@
 
 // ==================
 // Standard stuff.
-// (stdint not included.)
+// (stdint not included, it's in general.h.)
 // ==================
 #include <stdlib.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <math.h>      // TODO: Some day i'll blow this line off out of existence.
+#include <stdio.h>   //NOTE(fuzzy): Used in general.h, and basically everywhere. for printf.
+#include <math.h>    //NOTE(fuzzy): Used in mafs.h, cos/sin. might replace it later.
 
 #if _MSC_VER
 #include <windows.h>
@@ -23,5 +22,5 @@
 // Stb Image stuff.
 // ==================
 #define STB_IMAGE_IMPLEMENTATION
-#include "deps/stb_image.h" // TODO: Some day i'll blow this line off out of existence.
+#include "deps/stb_image.h" // TODO(fuzzy): useful but I should be able to implement on my own.
 
