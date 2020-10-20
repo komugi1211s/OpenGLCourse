@@ -48,10 +48,11 @@ initialize_shaders(const char *vtx_shader_src, const char *frag_shader_src) {
 
     glGetShaderiv(vert_shader, GL_COMPILE_STATUS, &success);
     if (!success) {
+        glGetShaderInfoLog(vert_shader, 512, 0, error_log);
+        printf("VertShader: %s\n", error_log);
+
         glDeleteShader(vert_shader);
         glDeleteShader(frag_shader);
-
-        glGetShaderInfoLog(vert_shader, 512, 0, error_log);
         return(program);
     }
     success = 0;
@@ -61,10 +62,10 @@ initialize_shaders(const char *vtx_shader_src, const char *frag_shader_src) {
 
     glGetShaderiv(frag_shader, GL_COMPILE_STATUS, &success);
     if (!success) {
+        glGetShaderInfoLog(frag_shader, 512, 0, error_log);
+        printf("FragShader: %s\n", error_log);
         glDeleteShader(vert_shader);
         glDeleteShader(frag_shader);
-
-        glGetShaderInfoLog(frag_shader, 512, 0, error_log);
         return(program);
     }
     success = 0;
@@ -80,7 +81,9 @@ initialize_shaders(const char *vtx_shader_src, const char *frag_shader_src) {
         glDeleteShader(frag_shader);
 
         glGetProgramInfoLog(program.id, 512, 0, error_log);
+        printf("Program: %s\n", error_log);
 
+        memset(&program, 0, sizeof(program));
         return(program);
     }
 

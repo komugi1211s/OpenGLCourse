@@ -46,26 +46,46 @@ global_variable const char *VERTEX_SHADER = "#version 330 core\n"
 "\n"
 "layout (location = 0) in vec3 vec_position; \n"
 "layout (location = 1) in vec3 vec_color;\n"
-"layout (location = 2) in vec2 in_tex_coords; \n"
+"layout (location = 2) in vec3 vec_normal; \n"
 "out vec3 object_color; \n"
+"out vec3 frag_normal; \n"
+"out vec3 fragment_position; \n"
+"out vec3 light_position; \n"
 "uniform mat4 model; \n"
 "uniform mat4 view; \n"
 "uniform mat4 projection; \n"
+"uniform vec3 light_pos; \n"
 "void main() \n"
 "{ \n"
 "    gl_Position = projection * view * model * vec4(vec_position, 1.0); \n"
 "    object_color = vec_color; \n"
+"    frag_normal = mat3(transpose(inverse(view * model))) * vec_normal; \n"
+"    fragment_position = vec3(view * model * vec4(vec_position, 1.0)); \n"
+"    light_position = vec3(view * vec4(light_pos, 1.0)); \n"
 "} \n";
 
 global_variable const char *OBJECT_FRAGMENT_SHADER = "#version 330 core \n"
 "out vec4 frag_c; \n"
+"in vec3 frag_normal; \n"
+"in vec3 fragment_position; \n"
+"in vec3 light_position; \n"
 "uniform vec3 object_color; \n"
 "uniform vec3 light_color; \n"
-"uniform sampler2D my_texture;\n"
 "\n"
 "void main() \n"
 "{\n"
-"    frag_c = vec4(object_color * light_color, 1.0); \n"
+"    float  ambient_strength = 0.1; \n"
+"    float specular_strength = 0.1; \n"
+"    vec3 ambient = light_color * ambient_strength; \n"
+"    vec3 norm = normalize(frag_normal); \n"
+"    vec3 light_direction = normalize(light_position - fragment_position); \n"
+"    vec3 view_direction = normalize(-fragment_position); \n"
+"    vec3 reflection = reflect(-light_direction, norm); \n"
+"    float spec = pow(max(dot(view_direction, reflection), 0.0), 16); \n"
+"    vec3 specular = specular_strength * spec * light_color; \n"
+"    float difference = max(dot(norm, light_direction), 0.0); \n"
+"    vec3 diffuse = difference * light_color; \n"
+"    frag_c = vec4((ambient + diffuse + specular) * object_color, 1.0); \n"
 "}\n";
 
 global_variable const char *LIGHT_FRAGMENT_SHADER = "#version 330 core \n"
@@ -96,7 +116,7 @@ output_error(char *message) {
 }
 
 internal void
-gl_process_input(GLFWwindow *window, Engine_State *state) {
+gl_process_input(GLFWwindow *window, Engine_State *state, v3 *light_pos) {
     state->previous_mouse = state->current_mouse;
     glfwGetCursorPos(window, &state->current_mouse.x, &state->current_mouse.y);
 
@@ -120,6 +140,14 @@ gl_process_input(GLFWwindow *window, Engine_State *state) {
         camera_speed = 5.0f * dt;
     } else {
         camera_speed = 2.5f * dt;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
+        light_pos->xyz.x += 0.1;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
+        light_pos->xyz.x -= 0.1;
     }
 
 
@@ -181,7 +209,6 @@ draw_gizmo(Engine_State *engine, Shader_Info *gizmo_shader) {
     mat4x4 ortho = m4x4_orthographic(-1.0f, 1.0f, 1.0f, -1.0f, 0.1, 100.0);
     glBindVertexArray(gizmo_vao_id);
 
-    use_shader(gizmo_shader);
     set_uniform_matrix4x4(gizmo_shader, "model", &model);
     set_uniform_matrix4x4(gizmo_shader, "view", &view);
     set_uniform_matrix4x4(gizmo_shader, "projection", &ortho);
@@ -212,47 +239,47 @@ draw_origin_point(Engine_State *state, Shader_Info *shader) {
 int main(int argc, char **argv) {
 
     f32 cube_arrays[] = {
-        -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
-        0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
-        0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-        0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-        -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-        -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
+        -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
+         0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
+         0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
+         0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
+        -0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
+        -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
 
-        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-        0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-        0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-        0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-        -0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
-        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+        -0.5f, -0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
+         0.5f, -0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
+         0.5f,  0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
+         0.5f,  0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
+        -0.5f,  0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
+        -0.5f, -0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
 
-        -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-        -0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-        -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+        -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
+        -0.5f,  0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
+        -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
+        -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
+        -0.5f, -0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
+        -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
 
-        0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-        0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-        0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-        0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-        0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-        0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+         0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
+         0.5f,  0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
+         0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
+         0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
+         0.5f, -0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
+         0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
 
-        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-        0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
-        0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-        0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+        -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
+         0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
+         0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
+         0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
+        -0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
+        -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
 
-        -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-        0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-        0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-        0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-        -0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
-        -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
+        -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,
+         0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,
+         0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
+         0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
+        -0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
+        -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f
     };
 
     if (!glfwInit()) {
@@ -273,8 +300,8 @@ int main(int argc, char **argv) {
     Assert(glew_result == GLEW_OK);
 
     glViewport(0, 0, 800, 600);
-    Shader_Info shader = initialize_shaders(VERTEX_SHADER, OBJECT_FRAGMENT_SHADER);
-    Assert(shader.id);
+    Shader_Info object_shader = initialize_shaders(VERTEX_SHADER, OBJECT_FRAGMENT_SHADER);
+    Assert(object_shader.id);
 
     Texture_Info tex_info;
     tex_info = load_image_file_into_texture("first_texture.jpg", GL_TEXTURE_2D);
@@ -288,7 +315,7 @@ int main(int argc, char **argv) {
 
     //NOTE(fuzzy): Cleanup
     i32 ATTRIB_POSITION  = 0;
-    i32 ATTRIB_TEXCOORDS = 2;
+    i32 ATTRIB_NORMAL    = 2;
 
     // Set up the cube.
     glBindVertexArray(cube.vao);
@@ -296,26 +323,26 @@ int main(int argc, char **argv) {
     glBufferData(GL_ARRAY_BUFFER, sizeof(cube_arrays), cube_arrays, GL_STATIC_DRAW);
 
     glEnableVertexArrayAttrib(cube.vao, ATTRIB_POSITION);
-    glEnableVertexArrayAttrib(cube.vao, ATTRIB_TEXCOORDS);
-
-    glVertexAttribPointer(ATTRIB_POSITION,  3, GL_FLOAT, GL_FALSE, 5 * sizeof(f32), (void *)0);
-    glVertexAttribPointer(ATTRIB_TEXCOORDS, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(f32), (void *)(3 * sizeof(f32)));
+    glEnableVertexArrayAttrib(cube.vao, ATTRIB_NORMAL);
+    glVertexAttribPointer(ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(f32), (void *)0);
+    glVertexAttribPointer(ATTRIB_NORMAL,   3, GL_FLOAT, GL_FALSE, 6 * sizeof(f32), (void *)(3 * sizeof(f32)));
     glBindVertexArray(0);
 
 
     // Set up the light source.
     glGenVertexArrays(1, &light_source.vao);
     glBindVertexArray(light_source.vao);
+
     light_source.vbo = cube.vbo; // Same Vertex Buffer.
+
     glEnableVertexArrayAttrib(light_source.vao, ATTRIB_POSITION);
-    glVertexAttribPointer(ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(f32), (void *)0);
-    glBindVertexArray(cube.vao);
+    glVertexAttribPointer(ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(f32), (void *)0);
+
     glBindVertexArray(0);
 
     // Setup the light shader.
     Shader_Info light_shader = initialize_shaders(VERTEX_SHADER, LIGHT_FRAGMENT_SHADER);
     Assert(light_shader.id);
-
 
     // Setup the gizmo.
     Shader_Info gizmo_shader = {0};
@@ -325,7 +352,7 @@ int main(int argc, char **argv) {
     glEnable(GL_DEPTH_TEST);
 
     Engine_State engine_state = {0};
-    engine_state.camera_position = vec_3(0.0f, 0.0f,  0.0f);
+    engine_state.camera_position = vec_3(0.0f, 0.0f,  5.0f);
     engine_state.camera_target   = vec_3(0.0f, 0.0f, -1.0f);
     engine_state.camera_up       = vec_3(0.0f, 1.0f,  0.0f);
     // engine_state.imm_gui         = imm_initialize();
@@ -338,13 +365,14 @@ int main(int argc, char **argv) {
 
     f32 sensitivity = 0.1f;
     f32 last_frame = 0.0f;
+    v3 light_pos = vec_3(3.0f, 3.0f, -2.0f);
 
     while (!glfwWindowShouldClose(game_window)) {
         f32 current_frame = glfwGetTime();
         dt = current_frame - last_frame;
         last_frame = current_frame;
 
-        gl_process_input(game_window, &engine_state);
+        gl_process_input(game_window, &engine_state, &light_pos);
 
         if (engine_state.clicking) {
             f32 x_moved = (f32)(engine_state.current_mouse.x - engine_state.previous_mouse.x);
@@ -370,38 +398,50 @@ int main(int argc, char **argv) {
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+        mat4x4 view_mat = m4x4_look_at(engine_state.camera_position,
+                                       v3_add(&engine_state.camera_position, &engine_state.camera_target),
+                                       engine_state.camera_up);
 
-        mat4x4 trans_mat   = m4x4_identity();
-        mat4x4 view_mat    = m4x4_look_at(engine_state.camera_position,
-                                          v3_add(&engine_state.camera_position, &engine_state.camera_target),
-                                          engine_state.camera_up);
+        // Drawing default cube.
+        {
+            mat4x4 trans_mat = m4x4_scale(m4x4_identity(), vec_3(10.0f, 10.0f, 1.0f));
+            v3 object_color = vec_3(1.0f, 0.5f, 0.31f);
+            v3 light_color = vec_3(1.0f, 1.0f, 1.0f);
 
-        trans_mat = m4x4_rotate_radians(&trans_mat, (float)glfwGetTime(), vec_3(1.0f, 0.0f, 0.0f));
-        trans_mat = m4x4_translate(trans_mat, vec_3(1.0f, 1.0f, -0.0f));
+            use_shader(&object_shader);
+            set_uniform_vec3(&object_shader, "object_color", &object_color);
+            set_uniform_vec3(&object_shader, "light_color",  &light_color);
+            set_uniform_vec3(&object_shader, "light_pos",  &light_pos);
+            set_uniform_matrix4x4(&object_shader, "projection", &perspective);
+            set_uniform_matrix4x4(&object_shader, "model", &trans_mat);
+            set_uniform_matrix4x4(&object_shader, "view", &view_mat);
 
-        v3 object_color = vec_3(1.0f, 0.5f, 0.31f);
-        v3 light_color = vec_3(1.0f, 1.0f, 1.0f);
+            use_texture(&tex_info, GL_TEXTURE0);
+            glBindVertexArray(cube.vao);
+            glDrawArrays(GL_TRIANGLES, 0, sizeof(cube_arrays));
+            glBindVertexArray(0);
+        }
 
-        use_shader(&shader);
-        set_uniform_vec3(&shader, "object_color", &object_color);
-        set_uniform_vec3(&shader, "light_color", &light_color);
-        set_uniform_matrix4x4(&shader, "projection", &perspective);
-        set_uniform_matrix4x4(&shader, "model", &trans_mat);
-        set_uniform_matrix4x4(&shader, "view", &view_mat);
+        // Drawing Light Source Cube.
+        {
+            use_shader(&light_shader);
+            set_uniform_matrix4x4(&light_shader, "view", &view_mat);
+            set_uniform_matrix4x4(&light_shader, "projection", &perspective);
 
-        use_texture(&tex_info, GL_TEXTURE0);
-        glBindVertexArray(cube.vao);
-        glDrawArrays(GL_TRIANGLES, 0, sizeof(cube_arrays));
-        glBindVertexArray(0);
+            mat4x4 model_mat = m4x4_translate(m4x4_identity(), light_pos);
+            set_uniform_matrix4x4(&light_shader, "model", &model_mat);
 
-        use_shader(&light_shader);
-        glBindVertexArray(light_source.vao);
-        glDrawArrays(GL_TRIANGLES, 0, sizeof(cube_arrays));
-        glBindVertexArray(0);
+            glBindVertexArray(light_source.vao);
+            glDrawArrays(GL_TRIANGLES, 0, sizeof(cube_arrays));
+            glBindVertexArray(0);
+        }
 
-        use_shader(&gizmo_shader);
-        draw_origin_point(&engine_state, &gizmo_shader);
-        draw_gizmo(&engine_state, &gizmo_shader);
+        // Drawing gizmos'n stuff.
+        {
+            use_shader(&gizmo_shader);
+            draw_origin_point(&engine_state, &gizmo_shader);
+            draw_gizmo(&engine_state, &gizmo_shader);
+        }
 
         glViewport(0, 0, 800, 600);
 
