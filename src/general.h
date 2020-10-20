@@ -30,9 +30,6 @@ typedef uintptr_t uptr;
 #define Megabytes(n) (Kilobytes(n)*1024)
 #define Gigabytes(n) (Megabytes(n)*1024)
 
-global_variable b32 Assert_Not_Implemented = 0;
-global_variable b32 Assert_This_Path_Is_Invalid = 0;
-
 #define Str_Red(string) "\033[1;31m" string "\033[0m"
 #define Str_Green(string) "\033[1;32m" string "\033[0m"
 
@@ -43,7 +40,7 @@ global_variable b32 Assert_This_Path_Is_Invalid = 0;
     }\
     else { printf(Str_Green("[ASSERT PASSED(line %d)]: expr `" #expr "` (%s, %s)") "\n", __LINE__, __FILE__, __func__); }}
 
-#define NotImplemented Assert(Assert_Not_Implemented)
-#define InvalidPath    Assert(Assert_This_Path_Is_Invalid)
+#define NotImplemented { int Assert_Not_Implemented = 0; Assert(Assert_Not_Implemented); }
+#define InvalidPath    { int Assert_This_Path_Is_Invalid = 0; Assert(Assert_This_Path_Is_Invalid); }
 
 #endif // K_UTILITY_
