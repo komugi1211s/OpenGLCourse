@@ -42,69 +42,6 @@ const f32 gizmo_lines_array[] = {
     0.0f, 0.0f, 1.0f,
 };
 
-global_variable const char *VERTEX_SHADER = "#version 330 core\n"
-"\n"
-"layout (location = 0) in vec3 vec_position; \n"
-"layout (location = 1) in vec3 vec_color;\n"
-"layout (location = 2) in vec3 vec_normal; \n"
-"out vec3 object_color; \n"
-"out vec3 frag_normal; \n"
-"out vec3 fragment_position; \n"
-"out vec3 light_position; \n"
-"uniform mat4 model; \n"
-"uniform mat4 view; \n"
-"uniform mat4 projection; \n"
-"uniform vec3 light_pos; \n"
-"void main() \n"
-"{ \n"
-"    gl_Position = projection * view * model * vec4(vec_position, 1.0); \n"
-"    object_color = vec_color; \n"
-"    frag_normal = mat3(transpose(inverse(view * model))) * vec_normal; \n"
-"    fragment_position = vec3(view * model * vec4(vec_position, 1.0)); \n"
-"    light_position = vec3(view * vec4(light_pos, 1.0)); \n"
-"} \n";
-
-global_variable const char *OBJECT_FRAGMENT_SHADER = "#version 330 core \n"
-"out vec4 frag_c; \n"
-"in vec3 frag_normal; \n"
-"in vec3 fragment_position; \n"
-"in vec3 light_position; \n"
-"uniform vec3 object_color; \n"
-"uniform vec3 light_color; \n"
-"\n"
-"void main() \n"
-"{\n"
-"    float  ambient_strength = 0.1; \n"
-"    float specular_strength = 0.1; \n"
-"    vec3 ambient = light_color * ambient_strength; \n"
-"    vec3 norm = normalize(frag_normal); \n"
-"    vec3 light_direction = normalize(light_position - fragment_position); \n"
-"    vec3 view_direction = normalize(-fragment_position); \n"
-"    vec3 reflection = reflect(-light_direction, norm); \n"
-"    float spec = pow(max(dot(view_direction, reflection), 0.0), 16); \n"
-"    vec3 specular = specular_strength * spec * light_color; \n"
-"    float difference = max(dot(norm, light_direction), 0.0); \n"
-"    vec3 diffuse = difference * light_color; \n"
-"    frag_c = vec4((ambient + diffuse + specular) * object_color, 1.0); \n"
-"}\n";
-
-global_variable const char *LIGHT_FRAGMENT_SHADER = "#version 330 core \n"
-"out vec4 frag_c; \n"
-"\n"
-"void main() \n"
-"{\n"
-"    frag_c = vec4(1.0); \n"
-"}\n";
-
-global_variable const char *GIZMO_FRAGMENT_SHADER = "#version 330 core \n"
-"in vec3 object_color; \n"
-"out vec4 frag_c; \n"
-"\n"
-"void main() \n"
-"{\n"
-"    frag_c = vec4(object_color, 1.0); \n"
-"}\n";
-
 // TODO: more robustness
 internal void
 output_error(char *message) {
@@ -113,6 +50,36 @@ output_error(char *message) {
 #else
     fprintf(stderr, "%s", message);
 #endif
+}
+
+#if _MSC_VER
+#define fz_allocate(AllocSize) VirtualAlloc(0, AllocSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE)
+#define fz_free(FreeTarget)    VirtualFree(FreeTarget)
+#else
+#define fz_allocate(AllocSize) malloc(AllocSize)
+#define fz_free(FreeTarget)    free(FreeTarget)
+#endif
+
+
+// TODO: this assumes that it everything never fails.
+internal char *
+allocate_and_read_entire_file(char *filename) {
+    FILE *fp = 0;
+    fp = fopen(filename, "r");
+    Assert(fp);
+
+    Assert(0 == fseek(fp, 0, SEEK_END));
+    size_t file_length = ftell(fp);
+    Assert(0 == fseek(fp, 0, SEEK_SET));
+
+    char *file_memory = fz_allocate(file_length + 1);
+    Assert(file_memory);
+
+    u32 bytes_read = fread(file_memory, 1, file_length, fp);
+    file_memory[bytes_read] = '\0';
+
+    fclose(fp);
+    return file_memory;
 }
 
 internal void
@@ -144,12 +111,13 @@ gl_process_input(GLFWwindow *window, Engine_State *state, v3 *light_pos) {
 
     if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
         light_pos->xyz.x += 0.1;
+        light_pos->xyz.z += 0.1;
     }
 
     if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
         light_pos->xyz.x -= 0.1;
+        light_pos->xyz.z -= 0.1;
     }
-
 
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
         v3 move_towards = v3_mul_scalar(state->camera_target, camera_speed);
@@ -176,7 +144,7 @@ gl_process_input(GLFWwindow *window, Engine_State *state, v3 *light_pos) {
     }
 }
 
-void init_gizmo_stuff(Shader_Info *gizmo_shader) {
+void init_gizmo_stuff() {
     glGenVertexArrays(1, &gizmo_vao_id);
     glGenBuffers(1, &gizmo_vbo_id);
 
@@ -189,8 +157,6 @@ void init_gizmo_stuff(Shader_Info *gizmo_shader) {
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, (3 * sizeof(f32)), (void *)0);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, (3 * sizeof(f32)), (void *)((3 * sizeof(f32)) * 6));
-
-    *gizmo_shader = initialize_shaders(VERTEX_SHADER, GIZMO_FRAGMENT_SHADER);
 
     glBindVertexArray(0);
 }
@@ -209,6 +175,9 @@ draw_gizmo(Engine_State *engine, Shader_Info *gizmo_shader) {
     mat4x4 ortho = m4x4_orthographic(-1.0f, 1.0f, 1.0f, -1.0f, 0.1, 100.0);
     glBindVertexArray(gizmo_vao_id);
 
+    /*
+     * Set Vertex Shader Variable.
+     */
     set_uniform_matrix4x4(gizmo_shader, "model", &model);
     set_uniform_matrix4x4(gizmo_shader, "view", &view);
     set_uniform_matrix4x4(gizmo_shader, "projection", &ortho);
@@ -227,9 +196,12 @@ draw_origin_point(Engine_State *state, Shader_Info *shader) {
                                       v3_add(&state->camera_position, &state->camera_target),
                                       state->camera_up);
 
+    /*
+     * Set Vertex Shader Variable.
+     */
+    set_uniform_matrix4x4(shader, "view", &view_mat);
     set_uniform_matrix4x4(shader, "model", &trans_mat);
     set_uniform_matrix4x4(shader, "projection", &perspective);
-    set_uniform_matrix4x4(shader, "view", &view_mat);
     glBindVertexArray(gizmo_vao_id);
     glDrawArrays(GL_LINES, 0, 6);
     glBindVertexArray(0);
@@ -282,10 +254,7 @@ int main(int argc, char **argv) {
         -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f
     };
 
-    if (!glfwInit()) {
-        output_error("Failed to initialize GLFW.\n");
-        return(-1);
-    }
+    Assert(glfwInit());
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -300,9 +269,42 @@ int main(int argc, char **argv) {
     Assert(glew_result == GLEW_OK);
 
     glViewport(0, 0, 800, 600);
-    Shader_Info object_shader = initialize_shaders(VERTEX_SHADER, OBJECT_FRAGMENT_SHADER);
+
+
+    /*
+     * Set up the shader.
+     * */
+    char *vertex_shader_file = allocate_and_read_entire_file("./render.vert");
+    char *object_frag_file   = allocate_and_read_entire_file("./object_render.frag");
+    char *light_frag_file    = allocate_and_read_entire_file("./light_render.frag");
+    char *gizmo_frag_file    = allocate_and_read_entire_file("./gizmo_render.frag");
+
+    Shader_Info object_shader = {0};
+    Shader_Info light_shader  = {0};
+    Shader_Info gizmo_shader  = {0};
+
+    object_shader = initialize_shaders(vertex_shader_file, object_frag_file);
     Assert(object_shader.id);
 
+    light_shader  = initialize_shaders(vertex_shader_file, light_frag_file);
+    Assert(light_shader.id);
+
+    gizmo_shader  = initialize_shaders(vertex_shader_file, gizmo_frag_file);
+    Assert(gizmo_shader.id);
+
+    fz_free(vertex_shader_file);
+    fz_free(object_frag_file);
+    fz_free(light_frag_file);
+    fz_free(gizmo_frag_file);
+
+    /*
+     * Initialize Gizmo.
+     * */
+    init_gizmo_stuff();
+
+    /*
+     * Load Texture.
+     * */
     Texture_Info tex_info;
     tex_info = load_image_file_into_texture("first_texture.jpg", GL_TEXTURE_2D);
     Assert(tex_info.width > 0 && tex_info.height > 0);
@@ -340,17 +342,11 @@ int main(int argc, char **argv) {
 
     glBindVertexArray(0);
 
-    // Setup the light shader.
-    Shader_Info light_shader = initialize_shaders(VERTEX_SHADER, LIGHT_FRAGMENT_SHADER);
-    Assert(light_shader.id);
-
-    // Setup the gizmo.
-    Shader_Info gizmo_shader = {0};
-    init_gizmo_stuff(&gizmo_shader);
-    Assert(gizmo_shader.id);
-
     glEnable(GL_DEPTH_TEST);
 
+    /*
+     * Setup the engine.
+     * */
     Engine_State engine_state = {0};
     engine_state.camera_position = vec_3(0.0f, 0.0f,  5.0f);
     engine_state.camera_target   = vec_3(0.0f, 0.0f, -1.0f);
@@ -409,12 +405,21 @@ int main(int argc, char **argv) {
             v3 light_color = vec_3(1.0f, 1.0f, 1.0f);
 
             use_shader(&object_shader);
-            set_uniform_vec3(&object_shader, "object_color", &object_color);
-            set_uniform_vec3(&object_shader, "light_color",  &light_color);
-            set_uniform_vec3(&object_shader, "light_pos",  &light_pos);
-            set_uniform_matrix4x4(&object_shader, "projection", &perspective);
-            set_uniform_matrix4x4(&object_shader, "model", &trans_mat);
+
+            /*
+             * Set Vertex Shader Variable.
+             */
             set_uniform_matrix4x4(&object_shader, "view", &view_mat);
+            set_uniform_matrix4x4(&object_shader, "model", &trans_mat);
+            set_uniform_matrix4x4(&object_shader, "projection", &perspective);
+
+            set_uniform_vec3(&object_shader, "light_position",  &light_pos);
+
+            /*
+             * Set Fragment Shader Variable.
+             */
+            set_uniform_vec3(&object_shader, "ObjectColor", &object_color);
+            set_uniform_vec3(&object_shader, "LightColor",  &light_color);
 
             use_texture(&tex_info, GL_TEXTURE0);
             glBindVertexArray(cube.vao);
@@ -424,12 +429,16 @@ int main(int argc, char **argv) {
 
         // Drawing Light Source Cube.
         {
+            mat4x4 model_mat = m4x4_translate(m4x4_identity(), light_pos);
+
             use_shader(&light_shader);
+
+            /*
+             * Set Vertex Shader Variable.
+             */
+            set_uniform_matrix4x4(&light_shader, "model", &model_mat);
             set_uniform_matrix4x4(&light_shader, "view", &view_mat);
             set_uniform_matrix4x4(&light_shader, "projection", &perspective);
-
-            mat4x4 model_mat = m4x4_translate(m4x4_identity(), light_pos);
-            set_uniform_matrix4x4(&light_shader, "model", &model_mat);
 
             glBindVertexArray(light_source.vao);
             glDrawArrays(GL_TRIANGLES, 0, sizeof(cube_arrays));
