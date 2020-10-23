@@ -164,7 +164,6 @@ void init_gizmo_stuff() {
 internal void
 draw_gizmo(Engine_State *engine, Shader_Info *gizmo_shader) {
     glViewport(0, 0, 100, 100);
-    glClear(GL_DEPTH_BUFFER_BIT);
 
     mat4x4 model = m4x4_identity();
     mat4x4 view  = m4x4_look_at(engine->camera_position,
@@ -363,10 +362,22 @@ int main(int argc, char **argv) {
     f32 last_frame = 0.0f;
     v3 light_pos = vec_3(3.0f, 3.0f, -2.0f);
 
+    Light light;
+    light.position = light_pos;
+    light.ambient_color = vec_3(0.2, 0.2, 0.2);
+    light.diffuse_color = vec_3(0.5, 0.5, 0.5);
+    light.specular_color = vec_3(1.0, 1.0, 1.0);
+
     while (!glfwWindowShouldClose(game_window)) {
+
         f32 current_frame = glfwGetTime();
         dt = current_frame - last_frame;
         last_frame = current_frame;
+
+        light.diffuse_color.col[0] = sin(current_frame * 2.0);
+        light.diffuse_color.col[1] = sin(current_frame * 1.0);
+        light.diffuse_color.col[2] = sin(current_frame * 0.7);
+
 
         gl_process_input(game_window, &engine_state, &light_pos);
 
@@ -401,10 +412,13 @@ int main(int argc, char **argv) {
         // Drawing default cube.
         {
             mat4x4 trans_mat = m4x4_scale(m4x4_identity(), vec_3(10.0f, 10.0f, 1.0f));
-            v3 object_color = vec_3(1.0f, 0.5f, 0.31f);
-            v3 light_color = vec_3(1.0f, 1.0f, 1.0f);
-
             use_shader(&object_shader);
+
+            Material material;
+            material.ambient_color = vec_3(1.0, 0.5, 0.31);
+            material.diffuse_color = vec_3(1.0, 0.5, 0.31);
+            material.specular_color = vec_3(0.5, 0.5, 0.5);
+            material.shininess = 32.0;
 
             /*
              * Set Vertex Shader Variable.
@@ -412,14 +426,13 @@ int main(int argc, char **argv) {
             set_uniform_matrix4x4(&object_shader, "view", &view_mat);
             set_uniform_matrix4x4(&object_shader, "model", &trans_mat);
             set_uniform_matrix4x4(&object_shader, "projection", &perspective);
-
             set_uniform_vec3(&object_shader, "light_position",  &light_pos);
 
             /*
              * Set Fragment Shader Variable.
              */
-            set_uniform_vec3(&object_shader, "ObjectColor", &object_color);
-            set_uniform_vec3(&object_shader, "LightColor",  &light_color);
+            set_uniform_material(&object_shader, "FragMaterial", &material);
+            set_uniform_light(&object_shader, "FragLight", &light);
 
             use_texture(&tex_info, GL_TEXTURE0);
             glBindVertexArray(cube.vao);
@@ -439,6 +452,7 @@ int main(int argc, char **argv) {
             set_uniform_matrix4x4(&light_shader, "model", &model_mat);
             set_uniform_matrix4x4(&light_shader, "view", &view_mat);
             set_uniform_matrix4x4(&light_shader, "projection", &perspective);
+            set_uniform_light(&light_shader, "FragLight", &light);
 
             glBindVertexArray(light_source.vao);
             glDrawArrays(GL_TRIANGLES, 0, sizeof(cube_arrays));
@@ -448,12 +462,12 @@ int main(int argc, char **argv) {
         // Drawing gizmos'n stuff.
         {
             use_shader(&gizmo_shader);
+            glClear(GL_DEPTH_BUFFER_BIT);
             draw_origin_point(&engine_state, &gizmo_shader);
             draw_gizmo(&engine_state, &gizmo_shader);
         }
 
         glViewport(0, 0, 800, 600);
-
         glfwSwapBuffers(game_window);
         glfwPollEvents();
     }

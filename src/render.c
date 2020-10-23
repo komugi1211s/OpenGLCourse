@@ -1,5 +1,9 @@
 #include "mafs.h"
 #include "render.h"
+#ifndef MY_ALLOCA_H_
+#define MY_ALLOCA_H_
+#include <alloca.h> // for alloca
+#endif
 
 internal Texture_Info
 load_image_file_into_texture(char *file_name, GLenum texture_type) {
@@ -119,4 +123,57 @@ set_uniform_vec4(Shader_Info *shader, char *uniform_var_name, v4 *passing_vec4) 
     GLuint target;
     target = glGetUniformLocation(shader->id, uniform_var_name);
     glUniform4fv(target, 1, (f32 *)passing_vec4);
+}
+
+internal void
+set_uniform_material(Shader_Info *shader, char *uniform_var_name, Material *material) {
+    size length_of_name = strlen(uniform_var_name) + 128;
+
+    char *memory = alloca(length_of_name + 128);
+
+    memset(memory, 0, length_of_name + 128);
+    snprintf(memory, length_of_name + 128, "%s.ambient_color", uniform_var_name);
+    set_uniform_vec3(shader, memory, &material->ambient_color);
+
+    memset(memory, 0, length_of_name + 128);
+    snprintf(memory, length_of_name + 128, "%s.diffuse_color", uniform_var_name);
+    set_uniform_vec3(shader, memory, &material->diffuse_color);
+
+    memset(memory, 0, length_of_name + 128);
+    snprintf(memory, length_of_name + 128, "%s.specular_color", uniform_var_name);
+    set_uniform_vec3(shader, memory, &material->specular_color);
+
+    memset(memory, 0, length_of_name + 128);
+    snprintf(memory, length_of_name + 128, "%s.shininess", uniform_var_name);
+    set_uniform_f32(shader, memory, material->shininess);
+}
+
+internal void
+set_uniform_light(Shader_Info *shader, char *uniform_var_name, Light *light) {
+    size length_of_name = strlen(uniform_var_name) + 128;
+    char *memory = alloca(length_of_name + 128);
+
+    memset(memory, 0, length_of_name + 128);
+    snprintf(memory, length_of_name + 128, "%s.position", uniform_var_name);
+    set_uniform_vec3(shader, memory, &light->position);
+
+    memset(memory, 0, length_of_name + 128);
+    snprintf(memory, length_of_name + 128, "%s.ambient_color", uniform_var_name);
+    set_uniform_vec3(shader, memory, &light->ambient_color);
+
+    memset(memory, 0, length_of_name + 128);
+    snprintf(memory, length_of_name + 128, "%s.diffuse_color", uniform_var_name);
+    set_uniform_vec3(shader, memory, &light->diffuse_color);
+
+    memset(memory, 0, length_of_name + 128);
+    snprintf(memory, length_of_name + 128, "%s.specular_color", uniform_var_name);
+    set_uniform_vec3(shader, memory, &light->specular_color);
+}
+
+internal void
+set_uniform_f32(Shader_Info *shader, char *uniform_var_name, f32 value) {
+    GLuint target;
+    target = glGetUniformLocation(shader->id, uniform_var_name);
+
+    glUniform1f(target, value);
 }
